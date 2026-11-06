@@ -4,14 +4,22 @@ from fastapi.testclient import TestClient
 
 from app.core.settings import Settings
 from app.domain.errors import AppError
+from app.infrastructure.chroma_store import ChromaStore
 from app.main import create_app
+from app.schemas.models import INSUFFICIENT
+from tests.embedder import HashEmbedder
 from tests.pdf_bytes import build_pdf
 from tests.unit.test_summary import ScriptedLlm, _summary
 
 
+def _app(settings: Settings | None = None):
+    resolved = settings or Settings()
+    return create_app(resolved, embedder=HashEmbedder(), vectors=ChromaStore.memory())
+
+
 def _client(max_upload_bytes: int = 20 * 1024 * 1024) -> TestClient:
     settings = Settings(max_upload_bytes=max_upload_bytes, chunk_size=200, chunk_overlap=20)
-    return TestClient(create_app(settings))
+    return TestClient(_app(settings))
 
 
 def test_health() -> None:
@@ -111,7 +119,7 @@ def test_rejects_bad_extension_mime_empty_and_oversize() -> None:
 
 
 def test_summary_endpoint_returns_the_schema() -> None:
-    app = create_app(Settings())
+    app = _app()
     llm = ScriptedLlm([_summary(title="From paper")])
     app.state.llm = llm
     client = TestClient(app)
@@ -138,7 +146,7 @@ def test_summary_endpoint_returns_the_schema() -> None:
 
 
 def test_summary_errors_for_missing_document_and_model_failure() -> None:
-    app = create_app(Settings())
+    app = _app()
     app.state.llm = ScriptedLlm(
         [AppError("model_timeout", "The local model timed out.", 504)]
     )
@@ -155,3 +163,42 @@ def test_summary_errors_for_missing_document_and_model_failure() -> None:
     assert failed.status_code == 504
     assert failed.json() == {"code": "model_timeout", "message": "The local model timed out."}
     assert "Traceback" not in failed.text
+
+
+def test_question_cites_the_stored_page() -> None:
+    app = _app(Settings(similarity_threshold=0.2))
+    app.state.llm = ScriptedLlm(["The yield rose. See page 99."])
+    client = TestClient(app)
+    missing = client.post(
+        f"/api/v1/documents/{uuid4()}/questions",
+        json={"question": "What changed?"},
+    )
+    assert missing.status_code == 404
+
+    uploaded = client.post(
+        "/api/v1/documents",
+        files={"file": ("study.pdf", build_pdf(["The catalyst increased yield"]), "application/pdf")},
+    )
+    assert uploaded.status_code == 201
+    document_id = uploaded.json()["id"]
+    response = client.post(
+        f"/api/v1/documents/{document_id}/questions",
+        json={"question": "catalyst increased yield"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == {"answer", "sources", "document_id"}
+    assert body["document_id"] == document_id
+    assert body["answer"] == "The yield rose. See page 99."
+    assert body["sources"][0]["page"] == 1
+    assert "catalyst" in body["sources"][0]["excerpt"]
+    assert body["sources"][0]["chunk_id"]
+    assert "Traceback" not in response.text
+
+    app.state.llm = ScriptedLlm([INSUFFICIENT])
+    empty = client.post(
+        f"/api/v1/documents/{document_id}/questions",
+        json={"question": "catalyst increased yield"},
+    )
+    assert empty.json()["answer"] == INSUFFICIENT
+    assert empty.json()["sources"] == []

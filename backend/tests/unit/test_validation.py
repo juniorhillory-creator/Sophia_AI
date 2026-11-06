@@ -21,6 +21,16 @@ def test_chunk_overlap_must_be_smaller_than_chunk_size() -> None:
         Settings(chunk_size=10, chunk_overlap=10)
 
 
+def test_retrieval_defaults_stay_in_range() -> None:
+    assert Settings.model_fields["retrieval_top_k"].default == 4
+    assert Settings.model_fields["similarity_threshold"].default == 0.3
+    assert Settings.model_fields["embedding_model"].default == "all-MiniLM-L6-v2"
+    with pytest.raises(ValidationError):
+        Settings(retrieval_top_k=2)
+    with pytest.raises(ValidationError):
+        Settings(similarity_threshold=1.1)
+
+
 def test_ollama_defaults_are_local() -> None:
     assert Settings.model_fields["ollama_base_url"].default == "http://127.0.0.1:11434"
     assert Settings.model_fields["ollama_model"].default == "llama3.2"

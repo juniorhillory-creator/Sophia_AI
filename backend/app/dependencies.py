@@ -3,6 +3,7 @@ from fastapi import Request
 from app.core.settings import Settings
 from app.services.ingestion import IngestionService
 from app.services.llm import Llm
+from app.services.rag import RagService
 from app.services.sessions import SessionStore
 
 
@@ -14,8 +15,12 @@ def get_sessions(request: Request) -> SessionStore:
     return request.app.state.sessions
 
 
+def get_rag(request: Request) -> RagService:
+    return request.app.state.rag
+
+
 def get_ingestion(request: Request) -> IngestionService:
-    return IngestionService(get_settings(request), get_sessions(request))
+    return IngestionService(get_settings(request), get_sessions(request), get_rag(request).index)
 
 
 def get_llm(request: Request) -> Llm:
