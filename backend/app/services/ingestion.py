@@ -1,0 +1,68 @@
+import logging
+from datetime import datetime, timezone
+from pathlib import PurePath
+from uuid import uuid4
+
+from app.core.settings import Settings
+from app.domain.errors import AppError
+from app.infrastructure.chunking import chunk_pages
+from app.infrastructure.pdf import extract_pages
+from app.schemas.models import Document
+from app.services.sessions import DocumentSession, SessionStore
+
+logger = logging.getLogger("sophia.ingestion")
+
+
+def validate_declared_file(filename: str | None, content_type: str | None) -> str:
+    if not filename or not filename.strip():
+        raise AppError("invalid_pdf", "Upload a PDF file.", 400)
+    name = PurePath(filename.replace("\\", "/")).name
+    name = "".join(char for char in name if char.isprintable()).strip()
+    if not name or len(name) > 255:
+        raise AppError("invalid_pdf", "Upload a PDF file.", 400)
+    if PurePath(name).suffix.lower() != ".pdf":
+        raise AppError("invalid_pdf", "File must use a .pdf extension.", 400)
+    media_type = (content_type or "").split(";", 1)[0].strip().lower()
+    if media_type != "application/pdf":
+        raise AppError("invalid_pdf", "Content type must be application/pdf.", 400)
+    return name
+
+
+class IngestionService:
+    def __init__(self, settings: Settings, sessions: SessionStore) -> None:
+        self._settings = settings
+        self._sessions = sessions
+
+    def ingest(self, filename: str | None, content_type: str | None, data: bytes) -> Document:
+        safe_name = validate_declared_file(filename, content_type)
+        pages = extract_pages(data)
+        document_id = uuid4()
+        chunks = chunk_pages(
+            document_id,
+            pages,
+            self._settings.chunk_size,
+            self._settings.chunk_overlap,
+        )
+        if not chunks:
+            raise AppError(
+                "empty_document",
+                "This PDF has no extractable text. Scanned pages are not supported.",
+                400,
+            )
+        document = Document(
+            id=document_id,
+            filename=safe_name,
+            page_count=len(pages),
+            chunk_count=len(chunks),
+            created_at=datetime.now(timezone.utc),
+        )
+        self._sessions.put(DocumentSession(document=document, chunks=chunks))
+        logger.info(
+            "document_stored",
+            extra={
+                "document_id": str(document.id),
+                "page_count": document.page_count,
+                "chunk_count": document.chunk_count,
+            },
+        )
+        return document
