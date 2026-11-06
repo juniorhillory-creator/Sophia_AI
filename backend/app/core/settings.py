@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "llama3.2"
     ollama_timeout_seconds: float = 120
+    embedding_model: str = "all-MiniLM-L6-v2"
+    chroma_path: str = "data/chroma"
+    retrieval_top_k: int = 4
+    similarity_threshold: float = 0.3
 
     @field_validator("log_level")
     @classmethod
@@ -32,6 +36,22 @@ class Settings(BaseSettings):
         if normalized not in logging.getLevelNamesMapping():
             raise ValueError(f"Unknown log level: {value}")
         return normalized
+
+    @field_validator("embedding_model")
+    @classmethod
+    def require_embedding_model(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("embedding_model must not be blank")
+        return stripped
+
+    @field_validator("chroma_path")
+    @classmethod
+    def require_chroma_path(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("chroma_path must not be blank")
+        return stripped
 
     @field_validator("ollama_model")
     @classmethod
@@ -74,6 +94,10 @@ class Settings(BaseSettings):
             raise ValueError("chunk_overlap must be >= 0 and smaller than chunk_size")
         if self.ollama_timeout_seconds <= 0:
             raise ValueError("ollama_timeout_seconds must be positive")
+        if self.retrieval_top_k not in (3, 4):
+            raise ValueError("retrieval_top_k must be 3 or 4")
+        if not 0 <= self.similarity_threshold <= 1:
+            raise ValueError("similarity_threshold must be from 0 to 1")
         return self
 
 

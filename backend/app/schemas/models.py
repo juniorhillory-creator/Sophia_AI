@@ -35,7 +35,32 @@ class ChunkList(BaseModel):
     chunks: list[Chunk]
 
 
+class QuestionRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("question")
+    @classmethod
+    def question_not_blank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("question must not be blank")
+        return stripped
+
+
+class SourceCitation(BaseModel):
+    page: int = Field(ge=1)
+    excerpt: str = Field(min_length=1)
+    chunk_id: str = Field(min_length=1)
+
+
+class ChatResponse(BaseModel):
+    answer: str = Field(min_length=1)
+    sources: list[SourceCitation]
+    document_id: UUID
+
+
 NOT_FOUND = "Not found in the paper."
+INSUFFICIENT = "The paper does not contain sufficient information."
 
 
 class PaperSummary(BaseModel):
