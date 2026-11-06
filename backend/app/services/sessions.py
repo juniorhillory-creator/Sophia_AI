@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from threading import Lock
 from uuid import UUID
 
+from app.infrastructure.pdf import PageText
 from app.schemas.models import Chunk, Document
 
 
@@ -9,6 +10,7 @@ from app.schemas.models import Chunk, Document
 class DocumentSession:
     document: Document
     chunks: list[Chunk]
+    pages: list[PageText]
 
 
 class SessionStore:
@@ -32,4 +34,5 @@ class SessionStore:
             return DocumentSession(
                 document=session.document.model_copy(deep=True),
                 chunks=[chunk.model_copy(deep=True) for chunk in session.chunks],
+                pages=list(session.pages),
             )

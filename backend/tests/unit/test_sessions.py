@@ -38,9 +38,11 @@ def test_session_reads_are_copies() -> None:
     fetched = store.get(document.id)
     assert fetched is not None
     fetched.chunks.clear()
+    fetched.pages.clear()
     again = store.get(document.id)
     assert again is not None
     assert len(again.chunks) == 1
+    assert len(again.pages) == 1
 
 
 def test_stored_log_does_not_include_document_text() -> None:

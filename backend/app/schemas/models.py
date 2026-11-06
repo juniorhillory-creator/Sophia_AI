@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ErrorBody(BaseModel):
@@ -33,3 +33,28 @@ class Chunk(BaseModel):
 class ChunkList(BaseModel):
     document_id: UUID
     chunks: list[Chunk]
+
+
+NOT_FOUND = "Not found in the paper."
+
+
+class PaperSummary(BaseModel):
+    """Fields copied from the stored paper. Unsupported fields are the not-found sentence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(description="Title")
+    authors: str = Field(description="Authors")
+    abstract: str = Field(description="Abstract")
+    problem_statement: str = Field(description="Problem Statement")
+    methodology: str = Field(description="Methodology")
+    key_results: str = Field(description="Key Results")
+    conclusion: str = Field(description="Conclusion")
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def blank_means_not_found(cls, value: object) -> object:
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or NOT_FOUND
+        return value

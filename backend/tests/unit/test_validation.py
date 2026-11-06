@@ -21,6 +21,15 @@ def test_chunk_overlap_must_be_smaller_than_chunk_size() -> None:
         Settings(chunk_size=10, chunk_overlap=10)
 
 
+def test_ollama_defaults_are_local() -> None:
+    assert Settings.model_fields["ollama_base_url"].default == "http://127.0.0.1:11434"
+    assert Settings.model_fields["ollama_model"].default == "llama3.2"
+    with pytest.raises(ValidationError):
+        Settings(ollama_model="  ")
+    with pytest.raises(ValidationError):
+        Settings(ollama_timeout_seconds=0)
+
+
 def test_cors_origins_accept_a_comma_separated_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CORS_ORIGINS", "http://a.test, http://b.test")
     settings = Settings()
