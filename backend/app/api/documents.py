@@ -4,11 +4,13 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request
 
 from app.core.settings import Settings
-from app.dependencies import get_ingestion, get_sessions, get_settings
+from app.dependencies import get_ingestion, get_llm, get_sessions, get_settings
 from app.domain.errors import AppError
-from app.schemas.models import ChunkList, Document
+from app.schemas.models import ChunkList, Document, ErrorBody, PaperSummary
 from app.services.ingestion import IngestionService
+from app.services.llm import Llm
 from app.services.sessions import SessionStore
+from app.services.summary import summarize
 from app.services.uploads import read_pdf_upload
 
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
@@ -59,3 +61,34 @@ def get_chunks(
     if session is None:
         raise AppError("not_found", "Document not found.", 404)
     return ChunkList(document_id=session.document.id, chunks=session.chunks)
+
+
+_SUMMARY_ERRORS = {
+    404: {"model": ErrorBody},
+    502: {"model": ErrorBody},
+    503: {"model": ErrorBody},
+    504: {"model": ErrorBody},
+}
+
+
+@router.post(
+    "/{document_id}/summary",
+    response_model=PaperSummary,
+    responses=_SUMMARY_ERRORS,
+)
+async def create_summary(
+    document_id: UUID,
+    sessions: SessionStore = Depends(get_sessions),
+    llm: Llm = Depends(get_llm),
+    settings: Settings = Depends(get_settings),
+) -> PaperSummary:
+    """Summarize the stored paper. Each field is paper text or `Not found in the paper.`"""
+    session = sessions.get(document_id)
+    if session is None:
+        raise AppError("not_found", "Document not found.", 404)
+    return await asyncio.to_thread(
+        summarize,
+        session.pages,
+        llm,
+        settings.ollama_timeout_seconds,
+    )

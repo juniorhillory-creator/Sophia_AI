@@ -3,8 +3,10 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from app.core.settings import Settings
+from app.domain.errors import AppError
 from app.main import create_app
 from tests.pdf_bytes import build_pdf
+from tests.unit.test_summary import ScriptedLlm, _summary
 
 
 def _client(max_upload_bytes: int = 20 * 1024 * 1024) -> TestClient:
@@ -106,3 +108,50 @@ def test_rejects_bad_extension_mime_empty_and_oversize() -> None:
     for response in (extension, mime, empty, oversize, huge, missing):
         assert set(response.json()) == {"code", "message"}
         assert "Traceback" not in response.text
+
+
+def test_summary_endpoint_returns_the_schema() -> None:
+    app = create_app(Settings())
+    llm = ScriptedLlm([_summary(title="From paper")])
+    app.state.llm = llm
+    client = TestClient(app)
+    uploaded = client.post(
+        "/api/v1/documents",
+        files={"file": ("study.pdf", build_pdf(["UNIQUE-PAPER-SENTENCE"]), "application/pdf")},
+    )
+    assert uploaded.status_code == 201
+    response = client.post(f"/api/v1/documents/{uploaded.json()['id']}/summary")
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == {
+        "title",
+        "authors",
+        "abstract",
+        "problem_statement",
+        "methodology",
+        "key_results",
+        "conclusion",
+    }
+    assert body["title"] == "From paper"
+    assert "UNIQUE-PAPER-SENTENCE" in llm.calls[0]["messages"][1]["content"]
+    assert "Traceback" not in response.text
+
+
+def test_summary_errors_for_missing_document_and_model_failure() -> None:
+    app = create_app(Settings())
+    app.state.llm = ScriptedLlm(
+        [AppError("model_timeout", "The local model timed out.", 504)]
+    )
+    client = TestClient(app)
+    missing = client.post(f"/api/v1/documents/{uuid4()}/summary")
+    assert missing.status_code == 404
+    assert missing.json()["code"] == "not_found"
+
+    uploaded = client.post(
+        "/api/v1/documents",
+        files={"file": ("study.pdf", build_pdf(["A finding"]), "application/pdf")},
+    )
+    failed = client.post(f"/api/v1/documents/{uploaded.json()['id']}/summary")
+    assert failed.status_code == 504
+    assert failed.json() == {"code": "model_timeout", "message": "The local model timed out."}
+    assert "Traceback" not in failed.text

@@ -56,7 +56,7 @@ class IngestionService:
             chunk_count=len(chunks),
             created_at=datetime.now(timezone.utc),
         )
-        self._sessions.put(DocumentSession(document=document, chunks=chunks))
+        self._sessions.put(DocumentSession(document=document, chunks=chunks, pages=pages))
         logger.info(
             "document_stored",
             extra={
