@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand: #f26934;
+  --color-brand-dark: #c44e22;
+  --font-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background: #f7f5f2;
+  color: #1c1917;
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid #f26934;
+  outline-offset: 2px;
+}

@@ -9,3 +9,5 @@ __pycache__/
 *.pyc
 data/
 .env.example
+frontend/node_modules/
+frontend/dist/
