@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import PurePath
 from uuid import uuid4
@@ -7,7 +8,7 @@ from app.core.settings import Settings
 from app.domain.errors import AppError
 from app.infrastructure.chunking import chunk_pages
 from app.infrastructure.pdf import extract_pages
-from app.schemas.models import Document
+from app.schemas.models import Chunk, Document
 from app.services.sessions import DocumentSession, SessionStore
 
 logger = logging.getLogger("sophia.ingestion")
@@ -29,9 +30,15 @@ def validate_declared_file(filename: str | None, content_type: str | None) -> st
 
 
 class IngestionService:
-    def __init__(self, settings: Settings, sessions: SessionStore) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        sessions: SessionStore,
+        index_chunks: Callable[[list[Chunk]], None] | None = None,
+    ) -> None:
         self._settings = settings
         self._sessions = sessions
+        self._index_chunks = index_chunks
 
     def ingest(self, filename: str | None, content_type: str | None, data: bytes) -> Document:
         safe_name = validate_declared_file(filename, content_type)
@@ -56,6 +63,9 @@ class IngestionService:
             chunk_count=len(chunks),
             created_at=datetime.now(timezone.utc),
         )
+        # shortcut: index during upload; move off the request if large papers time out
+        if self._index_chunks is not None:
+            self._index_chunks(chunks)
         self._sessions.put(DocumentSession(document=document, chunks=chunks, pages=pages))
         logger.info(
             "document_stored",
