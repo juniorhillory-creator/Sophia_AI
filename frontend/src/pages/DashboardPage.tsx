@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { uploadDocument, rejectUpload, errorMessage } from "../api/client";
@@ -8,19 +8,14 @@ import { DashboardHeader } from "../components/DashboardHeader";
 import { DocumentCard } from "../components/DocumentCard";
 import { EmptyState, LoadingSkeleton } from "../components/EmptyState";
 
-interface DashboardPageProps {
-  initialDocument?: Document;
-}
-
-export function DashboardPage({ initialDocument }: DashboardPageProps) {
+export function DashboardPage({ initialDocument }: { initialDocument?: Document } = {}) {
   const navigate = useNavigate();
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [documents, setDocuments] = useState<Document[]>(initialDocument ? [initialDocument] : []);
   const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "processing" | "success" | "error">("idle");
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [documentErrors, setDocumentErrors] = useState<Record<string, string>>({});
 
   const formatFileSize = (bytes: number) => {
@@ -29,13 +24,14 @@ export function DashboardPage({ initialDocument }: DashboardPageProps) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const handleFileSelect = (file: File) => {
-    const problem = rejectUpload(file);
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const problem = rejectUpload(files[0]);
     if (problem) {
       setUploadError(problem);
       return;
     }
-    setSelectedFile(file);
+    setSelectedFile(files[0]);
     setUploadError(null);
   };
 
@@ -57,7 +53,7 @@ export function DashboardPage({ initialDocument }: DashboardPageProps) {
       });
       setSelectedFile(null);
       setUploadStatus("success");
-      navigate(`/workspace/${document.id}`);
+      navigate(`/workspace/${document.id}`, { state: { document, file: selectedFile } });
     } catch (reason) {
       setUploadStatus("error");
       setUploadError(errorMessage(reason));
@@ -74,13 +70,8 @@ export function DashboardPage({ initialDocument }: DashboardPageProps) {
     navigate(`/workspace/${documentId}`);
   };
 
-  const handleDeleteDocument = async (documentId: string) => {
-    setDeletingId(documentId);
-    try {
-      setDocuments((prev) => prev.filter((d) => d.id !== documentId));
-    } finally {
-      setDeletingId(null);
-    }
+  const handleDeleteDocument = (documentId: string) => {
+    setDocuments((prev) => prev.filter((d) => d.id !== documentId));
   };
 
   const handleRetryDocument = (documentId: string) => {
@@ -105,10 +96,11 @@ export function DashboardPage({ initialDocument }: DashboardPageProps) {
 
         <main className={`flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 ${collapsed ? "md:pl-0" : "md:pl-64"}`}>
           <div className="max-w-7xl mx-auto">
-            {/* Welcome Section */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8">
               <div>
-                <h1 className="text-2xl font-bold text-stone-900">Welcome back,{user?.full_name ? ` ${user.full_name.split(" ")[0]}` : ""}</h1>
+                <h1 className="text-2xl font-bold text-stone-900">
+                  Welcome back,{user?.full_name ? " " + user.full_name.split(" ")[0] : ""}
+                </h1>
                 <p className="text-sm text-stone-500 mt-1">
                   Manage your research papers and ask questions with Sophia AI.
                 </p>
@@ -116,15 +108,21 @@ export function DashboardPage({ initialDocument }: DashboardPageProps) {
               <div className="mt-4 lg:mt-0 flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => navigate("/upload")}
+                  onClick={() => document.getElementById('dashboard-file-input')?.click()}
                   className="px-6 py-2.5 text-sm font-medium text-white bg-brand rounded-lg hover:bg-brand-dark transition-colors focus:ring-2 focus:ring-brand focus:ring-offset-2"
                 >
                   Upload Research Paper
                 </button>
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  className="sr-only"
+                  id="dashboard-file-input"
+                  onChange={(event) => handleFileSelect(event.target.files)}
+                />
               </div>
             </div>
 
-            {/* Upload Status / Error */}
             {uploadStatus === "error" && uploadError && (
               <div className="mb-6 p-4 rounded-xl bg-error-light border border-error/20">
                 <div className="flex items-start gap-3">
@@ -148,7 +146,6 @@ export function DashboardPage({ initialDocument }: DashboardPageProps) {
               </div>
             )}
 
-            {/* Selected File / Upload Ready */}
             {selectedFile && uploadStatus !== "success" && (
               <div className="mb-6 border border-stone-200 rounded-xl bg-white p-5 shadow-card">
                 <div className="flex items-center gap-4">
@@ -186,37 +183,35 @@ export function DashboardPage({ initialDocument }: DashboardPageProps) {
                   {uploadStatus === "uploading" ? "Uploading…" : uploadStatus === "processing" ? "Processing…" : "Upload and analyze"}
                 </button>
                 {uploadStatus === "processing" && (
-                  <div className="mt-3 h-2 bg-stone-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-brand rounded-full transition-all duration-300 ease-out w-2/3" />
+                  <div className="mt-3 space-y-2">
+                    <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-brand rounded-full transition-all duration-300 ease-out w-2/3" />
+                    </div>
+                    <p className="text-xs text-stone-500 text-center">Indexing document and preparing summary…</p>
                   </div>
-                  <p className="mt-2 text-xs text-stone-500 text-center">Indexing document and preparing summary…</p>
                 )}
               </div>
             )}
 
-            {/* Recent Documents Section */}
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-stone-900">Recent Documents</h2>
               </div>
 
-              {/* Loading State */}
-              {uploadStatus === "uploading" || uploadStatus === "processing"} && (
+              {uploadStatus === "uploading" || uploadStatus === "processing" ? (
                 <LoadingSkeleton count={2} />
-              )}
+              ) : null}
 
-              {/* Empty State */}
-              {documents.length === 0 && uploadStatus === "idle" && !selectedFile && (
+              {documents.length === 0 && uploadStatus === "idle" && !selectedFile ? (
                 <EmptyState
                   title="No documents yet"
                   description="Upload your first research paper to get started. Sophia will generate a structured summary and answer questions about its contents."
                   actionLabel="Upload Research Paper"
                   onAction={() => navigate("/upload")}
                 />
-              )}
+              ) : null}
 
-              {/* Document List */}
-              {documents.length > 0 && (
+              {documents.length > 0 ? (
                 <div className="space-y-3">
                   {documents.map((document) => {
                     const status = getDocumentStatus(document.id);
@@ -234,7 +229,7 @@ export function DashboardPage({ initialDocument }: DashboardPageProps) {
                     );
                   })}
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
         </main>
