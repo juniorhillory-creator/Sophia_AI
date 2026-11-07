@@ -9,5 +9,11 @@ __pycache__/
 *.pyc
 data/
 .env.example
+
+# Private keys and secrets
+backend/keys/private.pem
+backend/keys/public.pem
+*.pem
+*.key
 frontend/node_modules/
 frontend/dist/
