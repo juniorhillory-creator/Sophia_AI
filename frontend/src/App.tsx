@@ -1,4 +1,4 @@
-import { useCallback, useState, type KeyboardEvent, type DragEvent, type ChangeEvent } from "react";
+import { useCallback, useState, type KeyboardEvent } from "react";
 import { errorMessage, rejectUpload, uploadDocument } from "./api/client";
 import type { Document } from "./api/types";
 import { ChatPanel } from "./components/ChatPanel";
@@ -10,8 +10,9 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { GoogleCallbackPage } from "./pages/GoogleCallbackPage";
+import { DashboardPage } from "./pages/DashboardPage";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 
 type Phase =
   | { kind: "idle" }
@@ -24,6 +25,9 @@ function WorkspacePage() {
   const [page, setPage] = useState(1);
   const [tab, setTab] = useState<"summary" | "chat">("summary");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const location = useLocation();
+
+  const navState = location.state as { document?: Document; file?: File } | undefined;
 
   const openPage = useCallback((next: number) => {
     setPage(next);
@@ -31,6 +35,13 @@ function WorkspacePage() {
     viewer?.scrollIntoView({ block: "nearest" });
     viewer?.focus();
   }, []);
+
+  // Initialize from location state if available (navigated from dashboard upload)
+  const [initialized, setInitialized] = useState(false);
+  if (!initialized && navState?.document && navState?.file) {
+    setPhase({ kind: "ready", document: navState.document, file: navState.file });
+    setInitialized(true);
+  }
 
   function takeFiles(list: FileList | null | undefined) {
     if (phase.kind === "upload") return;
@@ -72,59 +83,81 @@ function WorkspacePage() {
   return (
     <div className="flex h-dvh flex-col bg-stone-50">
       <HeaderWithNavigate />
-      {phase.kind === "ready" ? (
-        <main className="min-h-0 flex-1 overflow-auto lg:overflow-hidden">
-          <div className="flex min-h-full flex-col lg:h-full lg:min-h-0 lg:flex-row">
-            <section className="h-[70vh] shrink-0 border-b border-stone-200 lg:h-full lg:w-1/2 lg:shrink lg:border-b-0 lg:border-r shadow-sm" aria-label="Paper">
+      <main className="min-h-0 flex-1 overflow-auto lg:overflow-hidden">
+        <div className="flex min-h-full flex-col lg:h-full lg:min-h-0 lg:flex-row">
+          <section className="h-[70vh] shrink-0 border-b border-stone-200 lg:h-full lg:w-1/2 lg:shrink lg:border-b-0 lg:border-r shadow-sm" aria-label="Paper">
+            {phase.kind === "ready" ? (
               <PdfViewer file={phase.file} page={page} onPageChange={setPage} />
-            </section>
-            <section className="flex min-h-[32rem] flex-col bg-white lg:h-full lg:min-h-0 lg:w-1/2 shadow-sm">
-              <div role="tablist" aria-label="Paper tools" className="flex shrink-0 gap-6 border-b border-stone-200 px-5 bg-stone-50/50" onKeyDown={onTabKey}>
-                <TabButton id="tab-summary" controls="panel-summary" selected={tab === "summary"} onSelect={() => setTab("summary")}>
-                  Summary
-                </TabButton>
-                <TabButton id="tab-chat" controls="panel-chat" selected={tab === "chat"} onSelect={() => setTab("chat")}>
-                  Chat
-                </TabButton>
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+                <EmptyStateCenter />
               </div>
-              <div className="relative min-h-[28rem] flex-1 lg:min-h-0">
-                <div
-                  role="tabpanel"
-                  id="panel-summary"
-                  aria-labelledby="tab-summary"
-                  hidden={tab !== "summary"}
-                  className="h-full overflow-auto px-5 py-5 scrollbar-thin"
-                >
+            )}
+          </section>
+          <section className="flex min-h-[32rem] flex-col bg-white lg:h-full lg:min-h-0 lg:w-1/2 shadow-sm">
+            <div role="tablist" aria-label="Paper tools" className="flex shrink-0 gap-6 border-b border-stone-200 px-5 bg-stone-50/50" onKeyDown={onTabKey}>
+              <TabButton id="tab-summary" controls="panel-summary" selected={tab === "summary"} onSelect={() => setTab("summary")}>
+                Summary
+              </TabButton>
+              <TabButton id="tab-chat" controls="panel-chat" selected={tab === "chat"} onSelect={() => setTab("chat")}>
+                Chat
+              </TabButton>
+            </div>
+            <div className="relative min-h-[28rem] flex-1 lg:min-h-0">
+              <div
+                role="tabpanel"
+                id="panel-summary"
+                aria-labelledby="tab-summary"
+                hidden={tab !== "summary"}
+                className="h-full overflow-auto px-5 py-5 scrollbar-thin"
+              >
+                {phase.kind === "ready" ? (
                   <SummaryPanel documentId={phase.document.id} filename={phase.document.filename} />
-                </div>
-                <div
-                  role="tabpanel"
-                  id="panel-chat"
-                  aria-labelledby="tab-chat"
-                  hidden={tab !== "chat"}
-                  className="h-full px-5 py-5 scrollbar-thin"
-                >
-                  <ChatPanel documentId={phase.document.id} onOpenPage={openPage} />
-                </div>
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+                    <EmptyStateCenter />
+                  </div>
+                )}
               </div>
-            </section>
-          </div>
-        </main>
-      ) : (
-        <UploadScreen
-          phase={phase}
-          error={error}
-          onFiles={takeFiles}
-          onRemoveFile={() => {
-            setSelectedFile(null);
-            setPhase({ kind: "idle" });
-            setError(null);
-          }}
-          onUploadSelected={() => void takeFile(selectedFile!)}
-        />
-      )}
+              <div
+                role="tabpanel"
+                id="panel-chat"
+                aria-labelledby="tab-chat"
+                hidden={tab !== "chat"}
+                className="h-full px-5 py-5 scrollbar-thin"
+              >
+                {phase.kind === "ready" ? (
+                  <ChatPanel documentId={phase.document.id} onOpenPage={openPage} />
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+                    <EmptyStateCenter />
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
     </div>
   );
+
+  function EmptyStateCenter() {
+    return (
+      <div className="space-y-3">
+        <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-stone-100 text-stone-400" aria-hidden="true">
+          <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+            <polyline points="10 9 9 9 8 9" />
+          </svg>
+        </div>
+        <h2 className="text-lg font-semibold text-stone-900">No paper open</h2>
+        <p className="text-sm text-stone-500">Upload a PDF or open one from the dashboard to get started.</p>
+      </div>
+    );
+  }
 
   function onTabKey(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
@@ -193,13 +226,13 @@ function UploadScreen({
         : `Uploading ${phase.filename}, ${phase.percent}%`
       : null;
 
-  const handleDragOver = (event: DragEvent<HTMLLabelElement>) => {
+  const handleDragOver = (event: React.DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
     event.stopPropagation();
     setOver(true);
   };
 
-  const handleDragLeave = (event: DragEvent<HTMLLabelElement>) => {
+  const handleDragLeave = (event: React.DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
     event.stopPropagation();
     const rect = event.currentTarget.getBoundingClientRect();
@@ -210,14 +243,14 @@ function UploadScreen({
     }
   };
 
-  const handleDrop = (event: DragEvent<HTMLLabelElement>) => {
+  const handleDrop = (event: React.DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
     event.stopPropagation();
     setOver(false);
     onFiles(event.dataTransfer.files);
   };
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     onFiles(event.target.files);
     event.target.value = "";
   };
@@ -409,10 +442,21 @@ function UploadScreen({
 
 function HeaderWithNavigate() {
   const { logout } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-stone-200 bg-white/95 backdrop-blur-lg supports-[backdrop-filter]:bg-white/80 px-4 sm:px-6 shadow-card">
       <div className="flex items-center gap-3">
+        <button
+          type="button"
+          className="md:hidden p-2 text-stone-600 rounded-lg hover:bg-stone-100 transition-colors"
+          onClick={() => navigate("/dashboard")}
+          aria-label="Go to dashboard"
+        >
+          <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M3 12h18M3 6h18M3 18h18" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
         <a href="/" className="flex items-center gap-2" aria-label="Sophia AI - Home">
           <svg className="h-8 w-8" viewBox="0 0 32 32" fill="none" aria-hidden="true">
             <defs>
@@ -460,37 +504,31 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
-          <Route
-            path="/workspace"
-            element={
-              <ProtectedRoute>
-                <WorkspacePage />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/upload" element={<Navigate to="/dashboard" replace />} />
           <Route
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <div className="p-8">
-                  <h1 className="text-2xl font-bold text-stone-900">Dashboard</h1>
-                  <p className="text-stone-600">Coming soon</p>
-                </div>
+                <DashboardPage />
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/papers"
-            element={
-              <ProtectedRoute>
-                <div className="p-8">
-                  <h1 className="text-2xl font-bold text-stone-900">My Papers</h1>
-                  <p className="text-stone-600">Coming soon</p>
-                </div>
-              </ProtectedRoute>
-            }
-          />
-          <Route path="/" element={<Navigate to="/workspace" replace />} />
+          <Route path="/workspace" element={
+            <ProtectedRoute>
+              <WorkspacePage />
+            </ProtectedRoute>
+          } />
+          <Route path="/workspace/:documentId" element={
+            <ProtectedRoute>
+              <WorkspacePage />
+            </ProtectedRoute>
+          } />
+          <Route path="/papers" element={
+            <ProtectedRoute>
+              <Navigate to="/dashboard" replace />
+            </ProtectedRoute>
+          } />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

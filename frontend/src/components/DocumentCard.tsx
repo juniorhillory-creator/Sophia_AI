@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { deleteDocument, errorMessage } from "../api/client";
+import { deleteDocument } from "../api/client";
 
 interface DocumentCardProps {
   document: {
