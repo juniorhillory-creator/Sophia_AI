@@ -11,6 +11,7 @@ import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { GoogleCallbackPage } from "./pages/GoogleCallbackPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { LandingPage } from "./pages/LandingPage";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 
@@ -504,7 +505,8 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
-          <Route path="/upload" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/upload" element={<Navigate to="/" replace />} />
+          <Route path="/" element={<LandingPage />} />
           <Route
             path="/dashboard"
             element={
@@ -518,17 +520,12 @@ export default function App() {
               <WorkspacePage />
             </ProtectedRoute>
           } />
-          <Route path="/workspace/:documentId" element={
-            <ProtectedRoute>
-              <WorkspacePage />
-            </ProtectedRoute>
-          } />
+          <Route path="/workspace/:documentId" element={<WorkspacePage />} />
           <Route path="/papers" element={
             <ProtectedRoute>
               <Navigate to="/dashboard" replace />
             </ProtectedRoute>
           } />
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
