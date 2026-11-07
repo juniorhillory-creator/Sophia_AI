@@ -12,7 +12,8 @@
   "dependencies": {
     "pdfjs-dist": "^4.10.38",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.0",

@@ -60,6 +60,68 @@ export const NOT_FOUND = "Not found in the paper.";
 
 export const INSUFFICIENT = "The paper does not contain sufficient information.";
 
+// --- Authentication types ---
+
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  full_name?: string | null;
+  avatar_url?: string | null;
+  is_active: boolean;
+  is_verified: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LoginRequest {
+  username_or_email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  username: string;
+  email: string;
+  password: string;
+  confirm_password: string;
+}
+
+export interface ForgotPasswordRequest {
+  username_or_email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  new_password: string;
+  confirm_password: string;
+}
+
+export interface AuthTokens {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  tokens: AuthTokens;
+}
+
+export interface GoogleAuthRequest {
+  code: string;
+  redirect_uri: string;
+}
+
+export interface GoogleAuthResponse {
+  user: User;
+  tokens: AuthTokens;
+  is_new_user: boolean;
+}
+
+export interface PasswordResetTokenResponse {
+  message: string;
+}
+
 export const SUMMARY_SECTIONS = [
   { key: "abstract", label: "Abstract" },
   { key: "problem_statement", label: "Problem statement" },
