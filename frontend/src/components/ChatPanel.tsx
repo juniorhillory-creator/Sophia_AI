@@ -89,7 +89,7 @@ export function ChatPanel({ documentId, onOpenPage }: ChatPanelProps) {
                 <button
                   key={question}
                   type="button"
-                  className="border border-stone-300 bg-white px-3 py-2 text-left text-sm text-stone-800 hover:border-brand"
+                  className="border border-stone-300 bg-white px-3 py-2.5 text-left text-sm text-stone-800 hover:border-brand focus:ring-2 focus:ring-brand focus:ring-offset-2"
                   onClick={() => void send(question)}
                 >
                   {question}
@@ -120,7 +120,7 @@ export function ChatPanel({ documentId, onOpenPage }: ChatPanelProps) {
                           <li key={`${source.chunk_id}-${index}`}>
                             <button
                               type="button"
-                              className="text-left"
+                              className="text-left focus:ring-2 focus:ring-brand focus:ring-offset-2 rounded"
                               onClick={() => onOpenPage(source.page)}
                             >
                               <span className="text-sm font-medium text-brand">Page {source.page}</span>
@@ -163,12 +163,12 @@ export function ChatPanel({ documentId, onOpenPage }: ChatPanelProps) {
           maxLength={2000}
           onChange={(event) => setDraft(event.target.value)}
           placeholder="Ask a question"
-          className="min-w-0 flex-1 border border-stone-300 bg-white px-3 py-2 text-sm"
+          className="min-w-0 flex-1 border border-stone-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand focus:ring-offset-2"
           disabled={pending}
         />
         <button
           type="submit"
-          className="bg-brand px-4 py-2 text-sm font-medium text-white disabled:bg-stone-300"
+          className="bg-brand px-4 py-2.5 text-sm font-medium text-white disabled:bg-stone-300 focus:ring-2 focus:ring-brand focus:ring-offset-2"
           disabled={pending || draft.trim().length === 0}
         >
           Ask
