@@ -171,3 +171,21 @@ export async function askQuestion(documentId: string, question: string): Promise
   }
   return payload;
 }
+
+export async function fetchDocument(documentId: string): Promise<Document> {
+  const response = await fetch(`/api/v1/documents/${documentId}`);
+  const payload = await readJson(response);
+  if (!response.ok) throw toApiError(response.status, payload);
+  if (!isDocument(payload)) {
+    throw new ApiError(response.status, "malformed_response", "The server returned an unreadable document.");
+  }
+  return payload;
+}
+
+export async function deleteDocument(documentId: string): Promise<void> {
+  const response = await fetch(`/api/v1/documents/${documentId}`, { method: "DELETE" });
+  if (!response.ok) {
+    const payload = await readJson(response);
+    throw toApiError(response.status, payload);
+  }
+}
