@@ -23,6 +23,7 @@ export function RegisterPage() {
     confirm_password: "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const handleInputChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -43,8 +44,10 @@ export function RegisterPage() {
     event.preventDefault();
     setSubmitting(true);
     clearError();
+    setValidationError(null);
     const validationError = validateForm();
     if (validationError) {
+      setValidationError(validationError);
       setSubmitting(false);
       return;
     }
@@ -148,9 +151,9 @@ export function RegisterPage() {
             </ul>
           </div>
 
-          {error && (
+          {(error || validationError) && (
             <div className="p-3 rounded-lg bg-error-light border border-error/20 text-sm text-error">
-              {error}
+              {validationError || error}
             </div>
           )}
 
