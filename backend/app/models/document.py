@@ -17,8 +17,8 @@ class Document(Base):
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
-    page_count: Mapped[int] = nullable=False)
-    chunk_count: Mapped[int] = nullable=False)
+    page_count: Mapped[int] = mapped_column(nullable=False)
+    chunk_count: Mapped[int] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
