@@ -1,7 +1,9 @@
 import asyncio
+from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import FileResponse
 
 from app.core.settings import Settings
 from app.dependencies import get_ingestion, get_llm, get_rag, get_sessions, get_settings
@@ -124,4 +126,29 @@ async def ask_question(
         body.question,
         llm,
         settings.ollama_timeout_seconds,
+    )
+
+
+@router.get("/{document_id}/file")
+async def get_document_file(
+    document_id: UUID,
+    settings: Settings = Depends(get_settings),
+    sessions: SessionStore = Depends(get_sessions),
+) -> FileResponse:
+    """Serve the original PDF file for the viewer."""
+    session = sessions.get(document_id)
+    if session is None:
+        raise AppError("not_found", "Document not found.", 404)
+
+    # Find the PDF file in the data directory
+    data_dir = Path(settings.chroma_path).parent / "documents" / str(document_id)
+    pdf_path = data_dir / "original.pdf"
+
+    if not pdf_path.exists():
+        raise AppError("not_found", "Document file not found.", 404)
+
+    return FileResponse(
+        path=pdf_path,
+        media_type="application/pdf",
+        filename=session.document.filename,
     )
