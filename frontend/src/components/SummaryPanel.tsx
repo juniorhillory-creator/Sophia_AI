@@ -35,7 +35,7 @@ export function SummarySection({ label, text }: SummarySectionProps) {
         <button
           type="button"
           onClick={() => void copy()}
-          className="text-sm text-brand hover:text-brand-dark"
+          className="text-sm text-brand hover:text-brand-dark focus:ring-2 focus:ring-brand focus:ring-offset-2 rounded"
           aria-label={`${copyLabel} ${label}`}
         >
           {copyLabel}
@@ -93,7 +93,7 @@ export function SummaryPanel({ documentId, filename }: SummaryPanelProps) {
         <p className="text-sm text-red-800">{error ?? "The summary could not be loaded."}</p>
         <button
           type="button"
-          className="mt-3 text-sm font-medium text-brand hover:text-brand-dark"
+          className="mt-3 text-sm font-medium text-brand hover:text-brand-dark focus:ring-2 focus:ring-brand focus:ring-offset-2 rounded"
           onClick={() => setAttempt((value) => value + 1)}
         >
           Try again

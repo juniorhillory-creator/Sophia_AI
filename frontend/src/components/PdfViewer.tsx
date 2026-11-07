@@ -110,7 +110,7 @@ export function PdfViewer({ file, page, onPageChange }: PdfViewerProps) {
         <div className="flex gap-2">
           <button
             type="button"
-            className="px-2 py-1 text-sm text-stone-800 disabled:text-stone-400"
+            className="px-3 py-1.5 text-sm text-stone-800 disabled:text-stone-400 rounded-lg hover:bg-stone-100 focus:ring-2 focus:ring-brand focus:ring-offset-2"
             onClick={() => onPageChange(safePage - 1)}
             disabled={pageCount === 0 || safePage <= 1}
           >
@@ -118,7 +118,7 @@ export function PdfViewer({ file, page, onPageChange }: PdfViewerProps) {
           </button>
           <button
             type="button"
-            className="px-2 py-1 text-sm text-stone-800 disabled:text-stone-400"
+            className="px-3 py-1.5 text-sm text-stone-800 disabled:text-stone-400 rounded-lg hover:bg-stone-100 focus:ring-2 focus:ring-brand focus:ring-offset-2"
             onClick={() => onPageChange(safePage + 1)}
             disabled={pageCount === 0 || safePage >= pageCount}
           >
