@@ -6,6 +6,7 @@ from jose import jwt
 from jose.exceptions import ExpiredSignatureError, JWTError
 
 from app.core.settings import Settings
+from app.core.supabase import get_supabase_client
 from app.db.session import get_database
 from app.domain.errors import AppError
 from app.services.ingestion import IngestionService
@@ -51,49 +52,72 @@ async def get_current_user(request: Request) -> UUID:
     auth = request.headers.get("Authorization")
     if not auth or not auth.startswith("Bearer "):
         raise AppError("unauthorized", "Missing or invalid Authorization header", 401)
-    
-    token = auth[7:]
+
+    token = auth[7:].strip()
     settings = request.app.state.settings
-    public_key = _load_public_key(settings)
-    
+
+    # 1. Try Supabase Auth verification if client is configured
+    supabase = get_supabase_client(settings)
+    if supabase is not None:
+        try:
+            user_resp = supabase.auth.get_user(token)
+            if user_resp and user_resp.user:
+                return UUID(user_resp.user.id)
+        except Exception:
+            # Fall through to secret/legacy check
+            pass
+
+    # 2. Try Supabase JWT Secret verification (HS256)
+    if settings.supabase_jwt_secret:
+        try:
+            payload = jwt.decode(
+                token,
+                settings.supabase_jwt_secret,
+                algorithms=["HS256"],
+                audience="authenticated",
+            )
+            if "sub" in payload:
+                return UUID(payload["sub"])
+        except ExpiredSignatureError:
+            raise AppError("token_expired", "Access token has expired", 401)
+        except Exception:
+            pass
+
+    # 3. Fallback: Legacy RS256 token verification
     try:
+        public_key = _load_public_key(settings)
         payload = jwt.decode(token, public_key, algorithms=[settings.jwt_algorithm])
+        if payload.get("type") != "access":
+            raise AppError("invalid_token", "Invalid token type", 401)
+        user_id = UUID(payload["sub"])
+
+        # Verify user exists and is active (cached)
+        cache = _get_user_cache()
+        user_id_str = str(user_id)
+        if user_id_str in cache:
+            if not cache[user_id_str]:
+                raise AppError("invalid_token", "Invalid access token", 401)
+        else:
+            db = get_database()
+            if db.is_connected:
+                async with db.session() as session:
+                    from app.models.user import User
+                    from sqlalchemy import select
+                    result = await session.execute(select(User).where(User.id == user_id))
+                    user = result.scalar_one_or_none()
+
+                    is_valid = user is not None and user.is_active
+                    cache[user_id_str] = is_valid
+
+                    if not is_valid:
+                        raise AppError("invalid_token", "Invalid access token", 401)
+        return user_id
     except ExpiredSignatureError:
         raise AppError("token_expired", "Access token has expired", 401)
-    except JWTError:
+    except AppError:
+        raise
+    except Exception:
         raise AppError("invalid_token", "Invalid access token", 401)
-    
-    if payload.get("type") != "access":
-        raise AppError("invalid_token", "Invalid token type", 401)
-    
-    user_id = UUID(payload["sub"])
-    
-    # Verify user exists and is active (cached)
-    cache = _get_user_cache()
-    user_id_str = str(user_id)
-    if user_id_str in cache:
-        if not cache[user_id_str]:
-            raise AppError("invalid_token", "Invalid access token", 401)
-    else:
-        db = get_database()
-        if db.is_connected:
-            async with db.session() as session:
-                from app.models.user import User
-                from sqlalchemy import select
-                result = await session.execute(select(User).where(User.id == user_id))
-                user = result.scalar_one_or_none()
-                
-                is_valid = user is not None and user.is_active
-                cache[user_id_str] = is_valid
-                
-                if not is_valid:
-                    raise AppError("invalid_token", "Invalid access token", 401)
-        else:
-            # When db not connected (e.g. test environment) - allow but don't cache
-            # This prevents test pollution where a fake user appears valid
-            pass
-    
-    return user_id
 
 
 def get_sessions(request: Request) -> SessionStore:

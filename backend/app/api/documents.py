@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -61,6 +62,18 @@ _UPLOAD_BODY = {
 }
 
 
+def _parse_datetime(val: Any) -> datetime:
+    if isinstance(val, datetime):
+        return val
+    if isinstance(val, str):
+        try:
+            return datetime.fromisoformat(val.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+    return datetime.now(timezone.utc)
+
+
+
 @router.post("", response_model=Document, status_code=201, openapi_extra=_UPLOAD_BODY)
 async def upload_document(
     request: Request,
@@ -111,8 +124,8 @@ async def list_documents(
                     stage=ProcessingStage(r["stage"]) if r.get("stage") else None,
                     error_code=r.get("error_code"),
                     error_message=r.get("error_message"),
-                    created_at=r.get("created_at"),
-                    updated_at=r.get("updated_at"),
+                    created_at=_parse_datetime(r.get("created_at")),
+                    updated_at=_parse_datetime(r.get("updated_at")),
                 )
                 for r in rows
             ]
@@ -239,8 +252,8 @@ async def _get_owned_document(
                         page_count=row.get("page_count", 0),
                         chunk_count=row.get("chunk_count", 0),
                         status=DocumentStatus(row.get("status", "ready")),
-                        created_at=row.get("created_at"),
-                        updated_at=row.get("updated_at"),
+                        created_at=_parse_datetime(row.get("created_at")),
+                        updated_at=_parse_datetime(row.get("updated_at")),
                     )
                     session = DocumentSession(document=doc, chunks=[], pages=[])
                     sessions.put(session)
