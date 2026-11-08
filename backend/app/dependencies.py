@@ -6,6 +6,13 @@ from jose import jwt
 from jose.exceptions import ExpiredSignatureError, JWTError
 
 from app.core.settings import Settings
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+from app.core.supabase import get_supabase_client
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
+>>>>>>> a548414abfb98420c309e4e0da43622410844ebc
 from app.db.session import get_database
 from app.domain.errors import AppError
 from app.services.ingestion import IngestionService
@@ -51,6 +58,26 @@ async def get_current_user(request: Request) -> UUID:
     auth = request.headers.get("Authorization")
     if not auth or not auth.startswith("Bearer "):
         raise AppError("unauthorized", "Missing or invalid Authorization header", 401)
+<<<<<<< HEAD
+    
+    token = auth[7:]
+=======
+<<<<<<< HEAD
+
+    token = auth[7:].strip()
+>>>>>>> a548414abfb98420c309e4e0da43622410844ebc
+    settings = request.app.state.settings
+    public_key = _load_public_key(settings)
+    
+    try:
+        payload = jwt.decode(token, public_key, algorithms=[settings.jwt_algorithm])
+    except ExpiredSignatureError:
+        raise AppError("token_expired", "Access token has expired", 401)
+    except JWTError:
+        raise AppError("invalid_token", "Invalid access token", 401)
+<<<<<<< HEAD
+=======
+=======
     
     token = auth[7:]
     settings = request.app.state.settings
@@ -62,6 +89,7 @@ async def get_current_user(request: Request) -> UUID:
         raise AppError("token_expired", "Access token has expired", 401)
     except JWTError:
         raise AppError("invalid_token", "Invalid access token", 401)
+>>>>>>> a548414abfb98420c309e4e0da43622410844ebc
     
     if payload.get("type") != "access":
         raise AppError("invalid_token", "Invalid token type", 401)
@@ -94,6 +122,10 @@ async def get_current_user(request: Request) -> UUID:
             pass
     
     return user_id
+<<<<<<< HEAD
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
+>>>>>>> a548414abfb98420c309e4e0da43622410844ebc
 
 
 def get_sessions(request: Request) -> SessionStore:
