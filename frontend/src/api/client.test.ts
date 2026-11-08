@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+<<<<<<< HEAD
 import {
   MAX_UPLOAD_BYTES,
   rejectUpload,
@@ -6,6 +7,9 @@ import {
   setAuthToken,
   getAuthToken,
 } from "./client";
+=======
+import { MAX_UPLOAD_BYTES, rejectUpload, toApiError } from "./client";
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
 
 function file(name: string, type: string, size: number): File {
   return { name, type, size } as File;
@@ -35,6 +39,7 @@ describe("toApiError", () => {
     expect(toApiError(500, { detail: "boom" }).code).toBe("http_error");
   });
 });
+<<<<<<< HEAD
 
 describe("auth tokens", () => {
   it("sets and retrieves the in-memory authorization token", () => {
@@ -44,3 +49,5 @@ describe("auth tokens", () => {
     expect(getAuthToken()).toBeNull();
   });
 });
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81

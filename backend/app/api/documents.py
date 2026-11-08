@@ -1,11 +1,15 @@
 import asyncio
 import json
+<<<<<<< HEAD
 from datetime import datetime, timezone
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
 from pathlib import Path
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
+<<<<<<< HEAD
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from sqlalchemy import select
 
@@ -24,6 +28,14 @@ from app.dependencies import (
     get_sessions,
     get_settings,
 )
+=======
+from fastapi.responses import FileResponse, StreamingResponse
+from sqlalchemy import select
+
+from app.core.settings import Settings
+from app.dependencies import get_current_user, get_ingestion, get_llm, get_rag, get_sessions, get_settings
+from app.db.session import get_database
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
 from app.domain.errors import AppError
 from app.models.document import Document as DocumentModel, DocumentStatus as ModelDocumentStatus
 from app.schemas.models import (
@@ -40,7 +52,11 @@ from app.schemas.models import (
 from app.services.ingestion import IngestionService
 from app.services.llm import Llm
 from app.services.rag import RagService
+<<<<<<< HEAD
 from app.services.sessions import DocumentSession, SessionStore
+=======
+from app.services.sessions import SessionStore
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
 from app.services.summary import summarize
 from app.services.uploads import read_pdf_upload
 
@@ -62,6 +78,7 @@ _UPLOAD_BODY = {
 }
 
 
+<<<<<<< HEAD
 def _parse_datetime(val: Any) -> datetime:
     if isinstance(val, datetime):
         return val
@@ -74,6 +91,8 @@ def _parse_datetime(val: Any) -> datetime:
 
 
 
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
 @router.post("", response_model=Document, status_code=201, openapi_extra=_UPLOAD_BODY)
 async def upload_document(
     request: Request,
@@ -102,11 +121,15 @@ async def upload_document(
 async def list_documents(
     request: Request,
     user_id: UUID = Depends(get_current_user),
+<<<<<<< HEAD
     settings: Settings = Depends(get_settings),
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     limit: int = 50,
     offset: int = 0,
 ) -> list[Document]:
     """List user's documents with pagination."""
+<<<<<<< HEAD
     # 1. Try Supabase
     supabase = get_supabase_client(settings)
     if supabase is not None:
@@ -169,6 +192,44 @@ async def list_documents(
         if hasattr(doc, "user_id") and doc.user_id == user_id:
             docs.append(doc)
     return docs[offset:offset + limit]
+=======
+    db = get_database()
+    if not db.is_connected:
+        sessions = request.app.state.sessions
+        docs = []
+        for session in sessions._items.values():
+            doc = session.document
+            if hasattr(doc, "user_id") and doc.user_id == user_id:
+                docs.append(doc)
+        return docs[offset:offset + limit]
+
+    async with db.session() as session:
+        result = await session.execute(
+            select(DocumentModel)
+            .where(DocumentModel.user_id == user_id)
+            .order_by(DocumentModel.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        docs = result.scalars().all()
+
+        return [
+            Document(
+                id=doc.id,
+                user_id=doc.user_id,
+                filename=doc.filename,
+                page_count=doc.page_count,
+                chunk_count=doc.chunk_count,
+                status=DocumentStatus(doc.status.value),
+                stage=ProcessingStage(doc.stage.value) if doc.stage is not None else None,
+                error_code=doc.error_code,
+                error_message=doc.error_message,
+                created_at=doc.created_at,
+                updated_at=doc.updated_at,
+            )
+            for doc in docs
+        ]
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
 
 
 @router.delete("/{document_id}", status_code=204)
@@ -176,13 +237,17 @@ async def delete_document(
     request: Request,
     document_id: UUID,
     user_id: UUID = Depends(get_current_user),
+<<<<<<< HEAD
     settings: Settings = Depends(get_settings),
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     sessions: SessionStore = Depends(get_sessions),
 ) -> None:
     """Delete a document and all associated data."""
     # Verify ownership
     await _get_owned_document(document_id, user_id, sessions, request)
 
+<<<<<<< HEAD
     # Delete from Supabase if configured
     supabase = get_supabase_client(settings)
     if supabase is not None:
@@ -195,6 +260,9 @@ async def delete_document(
             pass
 
     # Delete from SQLAlchemy database if connected
+=======
+    # Delete from database if connected
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     db = get_database()
     if db.is_connected:
         async with db.session() as db_session:
@@ -210,6 +278,10 @@ async def delete_document(
     chroma.delete_by_document_id(document_id)
 
     # Delete from filesystem
+<<<<<<< HEAD
+=======
+    settings = get_settings(request)
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     data_dir = Path(settings.chroma_path).parent / "documents" / str(document_id)
     if data_dir.exists():
         import shutil
@@ -225,8 +297,15 @@ async def _get_owned_document(
     sessions: SessionStore,
     request: Request,
 ) -> tuple:
+<<<<<<< HEAD
     """Get document from SessionStore or Supabase/Database and verify ownership."""
     session = sessions.get(document_id)
+=======
+    """Get document from SessionStore and verify ownership via database if connected."""
+    session = sessions.get(document_id)
+    if session is None:
+        raise AppError("not_found", "Document not found.", 404)
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
 
     cache_key = f"_owned_docs_{document_id}"
     cached = getattr(request.state, cache_key, None)
@@ -235,6 +314,7 @@ async def _get_owned_document(
             raise AppError("not_found", "Document not found.", 404)
         return session, cached
 
+<<<<<<< HEAD
     settings = request.app.state.settings
     supabase = get_supabase_client(settings)
 
@@ -264,6 +344,10 @@ async def _get_owned_document(
 
     # 2. Database check
     db = get_database()
+=======
+    db = get_database()
+    doc_model = None
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     if db.is_connected:
         async with db.session() as db_session:
             result = await db_session.execute(
@@ -275,9 +359,12 @@ async def _get_owned_document(
         setattr(request.state, cache_key, doc_model)
         return session, doc_model
 
+<<<<<<< HEAD
     if session is None:
         raise AppError("not_found", "Document not found.", 404)
 
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     setattr(request.state, cache_key, True)
     return session, None
 
@@ -328,6 +415,7 @@ async def create_summary(
     """Generate and cache summary for a document."""
     session, doc_model = await _get_owned_document(document_id, user_id, sessions, request)
 
+<<<<<<< HEAD
     # 1. Supabase cache check
     supabase = get_supabase_client(settings)
     if supabase is not None:
@@ -345,6 +433,12 @@ async def create_summary(
         return PaperSummary.model_validate_json(doc_model.summary)
 
     # 3. Generate summary via LLM
+=======
+    db = get_database()
+    if db.is_connected and doc_model is not None and doc_model.summary is not None:
+        return PaperSummary.model_validate_json(doc_model.summary)
+
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     summary = await asyncio.to_thread(
         summarize,
         session.pages,
@@ -352,6 +446,7 @@ async def create_summary(
         settings.ollama_timeout_seconds,
     )
 
+<<<<<<< HEAD
     # 4. Save to Supabase
     if supabase is not None:
         try:
@@ -361,6 +456,8 @@ async def create_summary(
             pass
 
     # 5. Save to Database if connected
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     if db.is_connected:
         async with db.session() as db_session:
             result = await db_session.execute(
@@ -384,12 +481,16 @@ async def get_summary(
     request: Request,
     document_id: UUID,
     user_id: UUID = Depends(get_current_user),
+<<<<<<< HEAD
     settings: Settings = Depends(get_settings),
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     sessions: SessionStore = Depends(get_sessions),
 ) -> PaperSummary:
     """Get cached summary for a document."""
     _, doc_model = await _get_owned_document(document_id, user_id, sessions, request)
 
+<<<<<<< HEAD
     # 1. Supabase check
     supabase = get_supabase_client(settings)
     if supabase is not None:
@@ -404,6 +505,10 @@ async def get_summary(
     # 2. Database check
     db = get_database()
     if db.is_connected and doc_model is not None and getattr(doc_model, "summary", None) is not None:
+=======
+    db = get_database()
+    if db.is_connected and doc_model is not None and doc_model.summary is not None:
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
         return PaperSummary.model_validate_json(doc_model.summary)
 
     raise AppError("not_ready", "Summary not yet generated.", 409)
@@ -487,6 +592,7 @@ async def get_document_file(
     user_id: UUID = Depends(get_current_user),
     settings: Settings = Depends(get_settings),
     sessions: SessionStore = Depends(get_sessions),
+<<<<<<< HEAD
 ):
     """Serve the original PDF file for the viewer from Supabase Storage or filesystem."""
     session, _ = await _get_owned_document(document_id, user_id, sessions, request)
@@ -507,6 +613,12 @@ async def get_document_file(
             pass
 
     # 2. Local filesystem fallback
+=======
+) -> FileResponse:
+    """Serve the original PDF file for the viewer."""
+    session, _ = await _get_owned_document(document_id, user_id, sessions, request)
+
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     data_dir = Path(settings.chroma_path).parent / "documents" / str(document_id)
     pdf_path = data_dir / "original.pdf"
 
@@ -516,5 +628,9 @@ async def get_document_file(
     return FileResponse(
         path=pdf_path,
         media_type="application/pdf",
+<<<<<<< HEAD
         filename=filename,
+=======
+        filename=session.document.filename,
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     )

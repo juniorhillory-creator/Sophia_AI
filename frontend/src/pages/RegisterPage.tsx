@@ -6,9 +6,18 @@ import { PasswordInput } from "../components/PasswordInput";
 import { GoogleButton } from "../components/GoogleButton";
 
 const PASSWORD_REQUIREMENTS = [
-  { label: "At least 8 characters", test: (password: string) => password.length >= 8 },
-  { label: "One uppercase letter", test: (password: string) => /[A-Z]/.test(password) },
-  { label: "One lowercase letter", test: (password: string) => /[a-z]/.test(password) },
+  {
+    label: "At least 8 characters",
+    test: (password: string) => password.length >= 8,
+  },
+  {
+    label: "One uppercase letter",
+    test: (password: string) => /[A-Z]/.test(password),
+  },
+  {
+    label: "One lowercase letter",
+    test: (password: string) => /[a-z]/.test(password),
+  },
   { label: "One number", test: (password: string) => /[0-9]/.test(password) },
 ];
 
@@ -31,15 +40,16 @@ export function RegisterPage() {
 
   const validateForm = (): string | null => {
     if (!form.username.trim()) return "Username is required.";
-    if (form.username.trim().length < 3) return "Username must be at least 3 characters.";
+    if (form.username.trim().length < 3)
+      return "Username must be at least 3 characters.";
     if (!form.email.trim()) return "Email is required.";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return "Please enter a valid email address.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
+      return "Please enter a valid email address.";
     if (!form.password) return "Password is required.";
-    if (form.password.length < 8) return "Password must be at least 8 characters.";
-    if (!/[A-Z]/.test(form.password)) return "Password must contain at least one uppercase letter.";
-    if (!/[a-z]/.test(form.password)) return "Password must contain at least one lowercase letter.";
-    if (!/[0-9]/.test(form.password)) return "Password must contain at least one number.";
-    if (form.password !== form.confirm_password) return "Passwords do not match.";
+    if (form.password.length < 8)
+      return "Password must be at least 8 characters.";
+    if (form.password !== form.confirm_password)
+      return "Passwords do not match.";
     return null;
   };
 
@@ -78,28 +88,52 @@ export function RegisterPage() {
     <AuthLayout>
       <div className="bg-white rounded-2xl border border-stone-200 shadow-card p-6 sm:p-8 animate-fade-in">
         <div className="mb-8 text-center">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-light text-brand mb-4" aria-hidden="true">
+          <div
+            className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-light text-brand mb-4"
+            aria-hidden="true"
+          >
             <svg className="h-7 w-7" viewBox="0 0 32 32" fill="none">
               <defs>
-                <linearGradient id="brandGradientRegister" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <linearGradient
+                  id="brandGradientRegister"
+                  x1="0"
+                  y1="0"
+                  x2="32"
+                  y2="32"
+                  gradientUnits="userSpaceOnUse"
+                >
                   <stop offset="0%" stopColor="#f26934" />
                   <stop offset="100%" stopColor="#c44e22" />
                 </linearGradient>
               </defs>
-              <circle cx="16" cy="16" r="15" stroke="url(#brandGradientRegister)" strokeWidth="2" />
+              <circle
+                cx="16"
+                cy="16"
+                r="15"
+                stroke="url(#brandGradientRegister)"
+                strokeWidth="2"
+              />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-stone-900">Create account</h1>
-          <p className="mt-2 text-sm text-stone-600">Join Sophia AI to manage your research papers</p>
+          <h1 className="text-2xl font-bold tracking-tight text-stone-900">
+            Create account
+          </h1>
+          <p className="mt-2 text-sm text-stone-600">
+            Join Sophia AI to manage your research papers
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-stone-700">Username</label>
+            <label className="block text-sm font-medium text-stone-700">
+              Username
+            </label>
             <input
               type="text"
               value={form.username}
-              onChange={(event) => handleInputChange("username", event.target.value)}
+              onChange={(event) =>
+                handleInputChange("username", event.target.value)
+              }
               placeholder="Choose a username"
               className="w-full border border-stone-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand focus:ring-offset-2 rounded-lg"
               required
@@ -107,16 +141,22 @@ export function RegisterPage() {
               disabled={submitting || isLoading}
             />
             {form.username.trim() && form.username.trim().length < 3 && (
-              <p className="text-sm text-error">Username must be at least 3 characters.</p>
+              <p className="text-sm text-error">
+                Username must be at least 3 characters.
+              </p>
             )}
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-stone-700">Email</label>
+            <label className="block text-sm font-medium text-stone-700">
+              Email
+            </label>
             <input
               type="email"
               value={form.email}
-              onChange={(event) => handleInputChange("email", event.target.value)}
+              onChange={(event) =>
+                handleInputChange("email", event.target.value)
+              }
               placeholder="you@example.com"
               className="w-full border border-stone-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand focus:ring-offset-2 rounded-lg"
               required
@@ -139,14 +179,20 @@ export function RegisterPage() {
           />
 
           <div className="space-y-1">
-            <p className="text-xs text-stone-600 font-medium">Password requirements:</p>
+            <p className="text-xs text-stone-600 font-medium">
+              Password requirements:
+            </p>
             <ul className="space-y-0.5">
               {passwordRequirementStatus.map((req) => (
                 <li key={req.label} className="flex items-start gap-2 text-xs">
-                  <span className={`mt-0.5 text-stone-500 ${req.met ? "text-success" : "text-stone-400"}`}>
+                  <span
+                    className={`mt-0.5 text-stone-500 ${req.met ? "text-success" : "text-stone-400"}`}
+                  >
                     {req.met ? "✓" : "○"}
                   </span>
-                  <span className={`text-stone-600 ${req.met ? "line-through opacity-60" : ""}`}>
+                  <span
+                    className={`text-stone-600 ${req.met ? "line-through opacity-60" : ""}`}
+                  >
                     {req.label}
                   </span>
                 </li>
@@ -175,15 +221,23 @@ export function RegisterPage() {
               <span className="w-full border-t border-stone-300"></span>
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-stone-500">Or continue with</span>
+              <span className="bg-white px-2 text-stone-500">
+                Or continue with
+              </span>
             </div>
           </div>
 
-          <GoogleButton onClick={() => navigate("/auth/google")} disabled={submitting || isLoading} />
+          <GoogleButton
+            onClick={() => navigate("/auth/google")}
+            disabled={submitting || isLoading}
+          />
 
           <p className="mt-6 text-center text-sm text-stone-600">
             Already have an account?{" "}
-            <a href="/login" className="font-medium text-brand hover:text-brand-dark">
+            <a
+              href="/login"
+              className="font-medium text-brand hover:text-brand-dark"
+            >
               Sign in
             </a>
           </p>

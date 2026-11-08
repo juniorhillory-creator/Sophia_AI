@@ -11,7 +11,10 @@ from sqlalchemy import or_, select, text
 
 from app.auth.password import get_password_service
 from app.core.settings import Settings, get_settings
+<<<<<<< HEAD
 from app.core.supabase import get_supabase_client, is_supabase_configured
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
 from app.db.session import get_database, get_db_session
 from app.domain.errors import AppError
 from app.models.user import (
@@ -94,6 +97,7 @@ class AuthService:
 
     async def register(self, data: RegisterRequest) -> tuple[str, str, User]:
         """Register a new user."""
+<<<<<<< HEAD
         if is_supabase_configured(self._settings):
             client = get_supabase_client(self._settings)
             if client:
@@ -130,6 +134,8 @@ class AuthService:
                         raise AppError("conflict", "Username or email already registered.", 409)
                     raise AppError("registration_failed", str(exc), 400)
 
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
         db = get_database()
         async with db.session() as session:
             # Check if username or email already exists
@@ -157,6 +163,7 @@ class AuthService:
 
     async def login(self, data: LoginRequest) -> tuple[str, str, User]:
         """Authenticate user with username/email and password."""
+<<<<<<< HEAD
         if is_supabase_configured(self._settings):
             client = get_supabase_client(self._settings)
             if client:
@@ -196,6 +203,8 @@ class AuthService:
                         raise AppError("invalid_credentials", "Invalid username/email or password.", 401)
                     raise AppError("login_failed", str(exc), 400)
 
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
         db = get_database()
         async with db.session() as session:
             result = await session.execute(
@@ -222,6 +231,7 @@ class AuthService:
 
     async def refresh_tokens(self, refresh_token: str) -> tuple[str, str]:
         """Refresh access token using refresh token."""
+<<<<<<< HEAD
         if is_supabase_configured(self._settings):
             client = get_supabase_client(self._settings)
             if client:
@@ -232,6 +242,8 @@ class AuthService:
                 except Exception:
                     raise AppError("token_expired", "Refresh token has expired or is invalid.", 401)
 
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
         _, public_key = self._get_keys()
         try:
             payload = jwt.decode(

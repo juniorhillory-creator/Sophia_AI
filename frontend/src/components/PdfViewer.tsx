@@ -1,4 +1,9 @@
-import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy, type RenderTask } from "pdfjs-dist";
+import {
+  getDocument,
+  GlobalWorkerOptions,
+  type PDFDocumentProxy,
+  type RenderTask,
+} from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { useEffect, useRef, useState } from "react";
 
@@ -11,7 +16,12 @@ interface PdfViewerProps {
   filename?: string;
 }
 
-export function PdfViewer({ file, page, onPageChange, filename }: PdfViewerProps) {
+export function PdfViewer({
+  file,
+  page,
+  onPageChange,
+  filename,
+}: PdfViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
@@ -116,8 +126,10 @@ export function PdfViewer({ file, page, onPageChange, filename }: PdfViewerProps
     };
   }, [pdf, safePage, width, zoomMultiplier]);
 
-  const handleZoomIn = () => setZoomMultiplier((prev) => Math.min(prev + 0.25, 2.5));
-  const handleZoomOut = () => setZoomMultiplier((prev) => Math.max(prev - 0.25, 0.5));
+  const handleZoomIn = () =>
+    setZoomMultiplier((prev) => Math.min(prev + 0.25, 2.5));
+  const handleZoomOut = () =>
+    setZoomMultiplier((prev) => Math.max(prev - 0.25, 0.5));
   const handleResetZoom = () => setZoomMultiplier(1);
 
   return (
@@ -126,7 +138,10 @@ export function PdfViewer({ file, page, onPageChange, filename }: PdfViewerProps
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200 bg-white/95 px-4 py-2 backdrop-blur shadow-sm">
         <div className="flex items-center gap-2">
           {filename && (
-            <span className="max-w-[200px] truncate text-xs font-medium text-stone-600 sm:max-w-[260px]" title={filename}>
+            <span
+              className="max-w-[200px] truncate text-xs font-medium text-stone-600 sm:max-w-[260px]"
+              title={filename}
+            >
               {filename}
             </span>
           )}
@@ -146,7 +161,13 @@ export function PdfViewer({ file, page, onPageChange, filename }: PdfViewerProps
               aria-label="Previous Page"
               title="Previous Page"
             >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <polyline points="15 18 9 12 15 6" />
               </svg>
             </button>
@@ -161,7 +182,13 @@ export function PdfViewer({ file, page, onPageChange, filename }: PdfViewerProps
               aria-label="Next Page"
               title="Next Page"
             >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <polyline points="9 18 15 12 9 6" />
               </svg>
             </button>
@@ -176,7 +203,13 @@ export function PdfViewer({ file, page, onPageChange, filename }: PdfViewerProps
               aria-label="Zoom out"
               title="Zoom out"
             >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 <line x1="8" y1="11" x2="14" y2="11" />
@@ -198,7 +231,13 @@ export function PdfViewer({ file, page, onPageChange, filename }: PdfViewerProps
               aria-label="Zoom in"
               title="Zoom in"
             >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 <line x1="11" y1="8" x2="11" y2="14" />
@@ -214,13 +253,17 @@ export function PdfViewer({ file, page, onPageChange, filename }: PdfViewerProps
         id="pdf-viewer"
         ref={frameRef}
         tabIndex={-1}
-        aria-label={pageCount > 0 ? `PDF, page ${safePage} of ${pageCount}` : "PDF Viewer"}
+        aria-label={
+          pageCount > 0 ? `PDF, page ${safePage} of ${pageCount}` : "PDF Viewer"
+        }
         className="min-h-0 flex-1 overflow-auto p-4 sm:p-6 outline-none scrollbar-thin"
       >
         {loading && (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-stone-500">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand border-t-transparent" />
-            <p className="text-sm font-medium">Opening scientific manuscript...</p>
+            <p className="text-sm font-medium">
+              Opening scientific manuscript...
+            </p>
           </div>
         )}
         {error ? (
