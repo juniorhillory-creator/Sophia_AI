@@ -15,10 +15,16 @@ _MAX_RESPONSE_BYTES = 1_000_000
 class OllamaClient:
     """Local Ollama chat client. This is the default model provider."""
 
+<<<<<<< HEAD
     def __init__(self, base_url: str, model: str, num_gpu: int | None = None) -> None:
         self._url = f"{base_url.rstrip('/')}/api/chat"
         self._model = model
         self._num_gpu = num_gpu
+=======
+    def __init__(self, base_url: str, model: str) -> None:
+        self._url = f"{base_url.rstrip('/')}/api/chat"
+        self._model = model
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
 
     def complete(
         self,
@@ -28,8 +34,11 @@ class OllamaClient:
         timeout: float,
     ) -> str:
         body: dict[str, Any] = {"model": self._model, "messages": messages, "stream": False}
+<<<<<<< HEAD
         if self._num_gpu is not None:
             body["options"] = {"num_gpu": self._num_gpu}
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
         if json_schema is not None:
             body["format"] = json_schema
         request = Request(
@@ -69,8 +78,11 @@ class OllamaClient:
     ) -> AsyncIterator[str]:
         """Stream model response chunks as they arrive."""
         body: dict[str, Any] = {"model": self._model, "messages": messages, "stream": True}
+<<<<<<< HEAD
         if self._num_gpu is not None:
             body["options"] = {"num_gpu": self._num_gpu}
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
         request = Request(
             self._url,
             data=json.dumps(body).encode(),

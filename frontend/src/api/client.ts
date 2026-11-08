@@ -297,6 +297,7 @@ export async function fetchDocuments(limit = 50, offset = 0): Promise<Document[]
   return payload as Document[];
 }
 
+<<<<<<< HEAD
 export async function fetchDocumentFile(documentId: string): Promise<Blob> {
   const response = await fetch(`/api/v1/documents/${documentId}/file`, {
     headers: authHeaders(),
@@ -308,6 +309,8 @@ export async function fetchDocumentFile(documentId: string): Promise<Blob> {
   return await response.blob();
 }
 
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
 export async function deleteDocument(documentId: string): Promise<void> {
   const response = await fetch(`/api/v1/documents/${documentId}`, {
     method: "DELETE",

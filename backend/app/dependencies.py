@@ -6,7 +6,10 @@ from jose import jwt
 from jose.exceptions import ExpiredSignatureError, JWTError
 
 from app.core.settings import Settings
+<<<<<<< HEAD
 from app.core.supabase import get_supabase_client
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
 from app.db.session import get_database
 from app.domain.errors import AppError
 from app.services.ingestion import IngestionService
@@ -52,6 +55,7 @@ async def get_current_user(request: Request) -> UUID:
     auth = request.headers.get("Authorization")
     if not auth or not auth.startswith("Bearer "):
         raise AppError("unauthorized", "Missing or invalid Authorization header", 401)
+<<<<<<< HEAD
 
     token = auth[7:].strip()
     settings = request.app.state.settings
@@ -118,6 +122,51 @@ async def get_current_user(request: Request) -> UUID:
         raise
     except Exception:
         raise AppError("invalid_token", "Invalid access token", 401)
+=======
+    
+    token = auth[7:]
+    settings = request.app.state.settings
+    public_key = _load_public_key(settings)
+    
+    try:
+        payload = jwt.decode(token, public_key, algorithms=[settings.jwt_algorithm])
+    except ExpiredSignatureError:
+        raise AppError("token_expired", "Access token has expired", 401)
+    except JWTError:
+        raise AppError("invalid_token", "Invalid access token", 401)
+    
+    if payload.get("type") != "access":
+        raise AppError("invalid_token", "Invalid token type", 401)
+    
+    user_id = UUID(payload["sub"])
+    
+    # Verify user exists and is active (cached)
+    cache = _get_user_cache()
+    user_id_str = str(user_id)
+    if user_id_str in cache:
+        if not cache[user_id_str]:
+            raise AppError("invalid_token", "Invalid access token", 401)
+    else:
+        db = get_database()
+        if db.is_connected:
+            async with db.session() as session:
+                from app.models.user import User
+                from sqlalchemy import select
+                result = await session.execute(select(User).where(User.id == user_id))
+                user = result.scalar_one_or_none()
+                
+                is_valid = user is not None and user.is_active
+                cache[user_id_str] = is_valid
+                
+                if not is_valid:
+                    raise AppError("invalid_token", "Invalid access token", 401)
+        else:
+            # When db not connected (e.g. test environment) - allow but don't cache
+            # This prevents test pollution where a fake user appears valid
+            pass
+    
+    return user_id
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
 
 
 def get_sessions(request: Request) -> SessionStore:

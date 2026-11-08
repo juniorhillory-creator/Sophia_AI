@@ -1,15 +1,23 @@
 import { SkeletonLoader } from "./SkeletonLoader";
 
 interface EmptyStateProps {
+<<<<<<< HEAD
   title?: string;
   description?: string;
   actionLabel?: string;
   onAction?: () => void;
   onUploadClick?: () => void;
+=======
+  title: string;
+  description: string;
+  actionLabel?: string;
+  onAction?: () => void;
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
   icon?: React.ReactNode;
 }
 
 export function EmptyState({
+<<<<<<< HEAD
   title = "No research papers yet",
   description = "Upload your first research paper to generate summaries and ask questions.",
   actionLabel = "Upload a paper",
@@ -19,6 +27,14 @@ export function EmptyState({
 }: EmptyStateProps) {
   const handleAction = onAction || onUploadClick;
 
+=======
+  title,
+  description,
+  actionLabel,
+  onAction,
+  icon,
+}: EmptyStateProps) {
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
       {icon ?? (
@@ -34,10 +50,17 @@ export function EmptyState({
       )}
       <h2 className="text-lg font-semibold text-stone-900">{title}</h2>
       <p className="mt-2 text-sm text-stone-500 max-w-xs">{description}</p>
+<<<<<<< HEAD
       {actionLabel && handleAction && (
         <button
           type="button"
           onClick={handleAction}
+=======
+      {actionLabel && onAction && (
+        <button
+          type="button"
+          onClick={onAction}
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
           className="mt-6 px-6 py-2.5 text-sm font-medium text-white bg-brand rounded-lg hover:bg-brand-dark transition-colors focus:ring-2 focus:ring-brand focus:ring-offset-2"
         >
           {actionLabel}
@@ -68,4 +91,8 @@ export function LoadingSkeleton({ count = 3 }: LoadingSkeletonProps) {
       ))}
     </div>
   );
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81

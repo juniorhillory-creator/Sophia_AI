@@ -21,6 +21,7 @@ def register_error_handlers(app: FastAPI) -> None:
         return JSONResponse(status_code=exc.status_code, content=_body(exc.code, exc.message))
 
     @app.exception_handler(RequestValidationError)
+<<<<<<< HEAD
     async def validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
         errors = exc.errors()
         messages: list[str] = []
@@ -44,6 +45,12 @@ def register_error_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=422,
             content=_body("validation_error", detail_msg),
+=======
+    async def validation_handler(_request: Request, _exc: RequestValidationError) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content=_body("validation_error", "Request validation failed."),
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
         )
 
     @app.exception_handler(HTTPException)

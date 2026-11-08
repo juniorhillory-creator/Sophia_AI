@@ -36,9 +36,12 @@ export function RegisterPage() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return "Please enter a valid email address.";
     if (!form.password) return "Password is required.";
     if (form.password.length < 8) return "Password must be at least 8 characters.";
+<<<<<<< HEAD
     if (!/[A-Z]/.test(form.password)) return "Password must contain at least one uppercase letter.";
     if (!/[a-z]/.test(form.password)) return "Password must contain at least one lowercase letter.";
     if (!/[0-9]/.test(form.password)) return "Password must contain at least one number.";
+=======
+>>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     if (form.password !== form.confirm_password) return "Passwords do not match.";
     return null;
   };
