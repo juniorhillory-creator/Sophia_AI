@@ -3,7 +3,7 @@ from enum import Enum as PyEnum
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -34,12 +34,12 @@ class Document(Base):
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
-    page_count: Mapped[int] = mapped_column(nullable=False)
-    chunk_count: Mapped[int] = mapped_column(nullable=False)
+    page_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    chunk_count: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[DocumentStatus] = mapped_column(
-        default=DocumentStatus.processing, nullable=False
+        String(50), default=DocumentStatus.processing, nullable=False
     )
-    stage: Mapped[ProcessingStage | None] = mapped_column(nullable=True)
+    stage: Mapped[ProcessingStage | None] = mapped_column(String(50), nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -50,7 +50,7 @@ class Document(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
-        nullable=False
+        nullable=False,
     )
 
     user: Mapped["User"] = relationship("User", back_populates="documents")

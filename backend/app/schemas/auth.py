@@ -72,6 +72,14 @@ class GoogleAuthRequest(BaseModel):
     redirect_uri: str = Field(min_length=1)
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(min_length=1)
+
+
+class LogoutRequest(BaseModel):
+    access_token: Optional[str] = None
+
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
@@ -106,8 +114,6 @@ class GoogleAuthResponse(BaseModel):
     tokens: "TokenResponse"
     is_new_user: bool
 
-
-from typing import Optional
 
 UserResponse.model_rebuild()
 AuthResponse.model_rebuild()

@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Callable
 from datetime import datetime, timezone
-from pathlib import PurePath
+from pathlib import Path, PurePath
 from uuid import UUID, uuid4
 
 from app.core.settings import Settings
@@ -62,6 +62,15 @@ class IngestionService:
             )
         
         now = datetime.now(timezone.utc)
+
+        # Persist PDF file to disk for viewing
+        try:
+            data_dir = Path(self._settings.chroma_path).parent / "documents" / str(document_id)
+            data_dir.mkdir(parents=True, exist_ok=True)
+            pdf_path = data_dir / "original.pdf"
+            pdf_path.write_bytes(data)
+        except Exception as e:
+            logger.warning("failed_to_save_pdf_file", extra={"error": str(e)})
         
         # Create document in PostgreSQL if user_id is provided and database is connected
         if self._user_id is not None:
@@ -89,7 +98,7 @@ class IngestionService:
             filename=safe_name,
             page_count=len(pages),
             chunk_count=len(chunks),
-            status=DocumentStatus.processing,
+            status=DocumentStatus.ready,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         )

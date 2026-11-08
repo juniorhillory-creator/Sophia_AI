@@ -36,3 +36,7 @@ class SessionStore:
                 chunks=[chunk.model_copy(deep=True) for chunk in session.chunks],
                 pages=list(session.pages),
             )
+
+    def delete(self, document_id: UUID) -> None:
+        with self._lock:
+            self._items.pop(document_id, None)

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { User } from "../api/types";
 import { login, register, logout, refreshTokens, errorMessage } from "../api/auth";
+import { setAuthToken } from "../api/client";
 
 type AuthState =
   | { kind: "unauthenticated" }
@@ -39,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       try {
         const response = await login(credentials);
+        setAuthToken(response.tokens.access_token);
         setState({
           kind: "authenticated",
           user: response.user,
@@ -46,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           refreshToken: response.tokens.refresh_token,
         });
       } catch (reason) {
+        setAuthToken(null);
         setState({ kind: "unauthenticated" });
         setError(errorMessage(reason));
         throw reason;
@@ -65,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       try {
         const response = await register(data);
+        setAuthToken(response.tokens.access_token);
         setState({
           kind: "authenticated",
           user: response.user,
@@ -72,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           refreshToken: response.tokens.refresh_token,
         });
       } catch (reason) {
+        setAuthToken(null);
         setState({ kind: "unauthenticated" });
         setError(errorMessage(reason));
         throw reason;
@@ -89,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Ignore logout errors; clear local state regardless
       }
     }
+    setAuthToken(null);
     setState({ kind: "unauthenticated" });
     setError(null);
   }, [state]);
@@ -98,11 +104,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (current.kind !== "authenticated") return;
     try {
       const tokens = await refreshTokens(current.refreshToken);
+      setAuthToken(tokens.access_token);
       setState((prev) => {
         if (prev.kind !== "authenticated") return prev;
         return { ...prev, accessToken: tokens.access_token, refreshToken: tokens.refresh_token };
       });
     } catch {
+      setAuthToken(null);
       setState({ kind: "unauthenticated" });
       setError("Session expired. Please sign in again.");
     }

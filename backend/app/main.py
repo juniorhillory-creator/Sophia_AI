@@ -24,12 +24,18 @@ logger = logging.getLogger("sophia.access")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db = get_database()
-    db.connect()
-    await db.create_tables()
-    logger.info("database_connected")
+    try:
+        db.connect()
+        await db.create_tables()
+        logger.info("database_connected")
+    except Exception as e:
+        logger.warning("database_connection_deferred", extra={"error": str(e)})
     yield
-    await db.disconnect()
-    logger.info("database_disconnected")
+    try:
+        await db.disconnect()
+        logger.info("database_disconnected")
+    except Exception as e:
+        logger.warning("database_disconnect_error", extra={"error": str(e)})
 
 
 def create_app(
@@ -50,11 +56,26 @@ def create_app(
         resolved.similarity_threshold,
     )
 
+    @app.middleware("http")
+    async def access_log(request: Request, call_next):
+        started = time.perf_counter()
+        response = await call_next(request)
+        logger.info(
+            "request",
+            extra={
+                "http_method": request.method,
+                "http_path": request.url.path,
+                "http_status": response.status_code,
+                "duration_ms": int((time.perf_counter() - started) * 1000),
+            },
+        )
+        return response
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=resolved.cors_origins,
-        allow_credentials=False,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS", "PATCH", "PUT"],
         allow_headers=["*"],
     )
     register_error_handlers(app)

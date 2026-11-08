@@ -10,6 +10,24 @@ export const INSUFFICIENT = "The paper does not contain sufficient information."
 
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
+let authToken: string | null = null;
+
+export function setAuthToken(token: string | null): void {
+  authToken = token;
+}
+
+export function getAuthToken(): string | null {
+  return authToken;
+}
+
+function authHeaders(extra: HeadersInit = {}): HeadersInit {
+  const headers = new Headers(extra);
+  if (authToken) {
+    headers.set("Authorization", `Bearer ${authToken}`);
+  }
+  return headers;
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -120,6 +138,9 @@ export function uploadDocument(
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/v1/documents");
     xhr.responseType = "text";
+    if (authToken) {
+      xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
+    }
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(event.loaded, event.total);
     };
@@ -150,7 +171,11 @@ export function uploadDocument(
 }
 
 export async function createSummary(documentId: string, signal?: AbortSignal): Promise<PaperSummary> {
-  const response = await fetch(`/api/v1/documents/${documentId}/summary`, { method: "POST", signal });
+  const response = await fetch(`/api/v1/documents/${documentId}/summary`, {
+    method: "POST",
+    headers: authHeaders(),
+    signal,
+  });
   const payload = await readJson(response);
   if (!response.ok) throw toApiError(response.status, payload);
   if (!isPaperSummary(payload)) {
@@ -160,7 +185,10 @@ export async function createSummary(documentId: string, signal?: AbortSignal): P
 }
 
 export async function getSummary(documentId: string, signal?: AbortSignal): Promise<PaperSummary> {
-  const response = await fetch(`/api/v1/documents/${documentId}/summary`, { signal });
+  const response = await fetch(`/api/v1/documents/${documentId}/summary`, {
+    headers: authHeaders(),
+    signal,
+  });
   const payload = await readJson(response);
   if (!response.ok) throw toApiError(response.status, payload);
   if (!isPaperSummary(payload)) {
@@ -169,11 +197,10 @@ export async function getSummary(documentId: string, signal?: AbortSignal): Prom
   return payload;
 }
 
-// shortcut: the API takes one question, so earlier bubbles stay on screen only
 export async function askQuestion(documentId: string, question: string): Promise<ChatResponse> {
   const response = await fetch(`/api/v1/documents/${documentId}/questions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ question } satisfies { question: string }),
   });
   const payload = await readJson(response);
@@ -184,18 +211,25 @@ export async function askQuestion(documentId: string, question: string): Promise
   return payload;
 }
 
-export type SSEChunk = { type: "content"; text: string } | { type: "citations"; citations: SourceCitation[] } | { type: "done" } | { type: "error"; message: string };
+export type SSEChunk =
+  | { type: "content"; text: string }
+  | { type: "citations"; citations: SourceCitation[] }
+  | { type: "done" }
+  | { type: "error"; message: string };
 
 export async function* askQuestionStream(
   documentId: string,
   question: string,
   signal?: AbortSignal,
 ): AsyncGenerator<SSEChunk, void, unknown> {
-  const response = await fetch(`/api/v1/documents/${documentId}/questions/stream?question=${encodeURIComponent(question)}`, {
-    method: "GET",
-    headers: { Accept: "text/event-stream" },
-    signal,
-  });
+  const response = await fetch(
+    `/api/v1/documents/${documentId}/questions/stream?question=${encodeURIComponent(question)}`,
+    {
+      method: "GET",
+      headers: authHeaders({ Accept: "text/event-stream" }),
+      signal,
+    },
+  );
   if (!response.ok) {
     const payload = await readJson(new Response(await response.text()));
     throw toApiError(response.status, payload);
@@ -240,7 +274,9 @@ export async function* askQuestionStream(
 }
 
 export async function fetchDocument(documentId: string): Promise<Document> {
-  const response = await fetch(`/api/v1/documents/${documentId}`);
+  const response = await fetch(`/api/v1/documents/${documentId}`, {
+    headers: authHeaders(),
+  });
   const payload = await readJson(response);
   if (!response.ok) throw toApiError(response.status, payload);
   if (!isDocument(payload)) {
@@ -249,8 +285,23 @@ export async function fetchDocument(documentId: string): Promise<Document> {
   return payload;
 }
 
+export async function fetchDocuments(limit = 50, offset = 0): Promise<Document[]> {
+  const response = await fetch(`/api/v1/documents?limit=${limit}&offset=${offset}`, {
+    headers: authHeaders(),
+  });
+  const payload = await readJson(response);
+  if (!response.ok) throw toApiError(response.status, payload);
+  if (!Array.isArray(payload)) {
+    throw new ApiError(response.status, "malformed_response", "Expected an array of documents.");
+  }
+  return payload as Document[];
+}
+
 export async function deleteDocument(documentId: string): Promise<void> {
-  const response = await fetch(`/api/v1/documents/${documentId}`, { method: "DELETE" });
+  const response = await fetch(`/api/v1/documents/${documentId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
   if (!response.ok) {
     const payload = await readJson(response);
     throw toApiError(response.status, payload);
