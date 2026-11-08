@@ -237,14 +237,57 @@ async def create_summary(
     llm: Llm = Depends(get_llm),
     settings: Settings = Depends(get_settings),
 ) -> PaperSummary:
-    """Summarize the stored paper. Each field is paper text or `Not found in the paper.`"""
-    session, _ = await _get_owned_document(document_id, user_id, sessions, request)
-    return await asyncio.to_thread(
+    """Generate and cache summary for a document."""
+    session, doc_model = await _get_owned_document(document_id, user_id, sessions, request)
+    
+    # Check if summary already exists in database
+    db = get_database()
+    if db.is_connected and doc_model is not None and doc_model.summary is not None:
+        return PaperSummary.model_validate_json(doc_model.summary)
+    
+    # Generate new summary
+    summary = await asyncio.to_thread(
         summarize,
         session.pages,
         llm,
         settings.ollama_timeout_seconds,
     )
+    
+    # Cache summary in database if connected
+    if db.is_connected:
+        async with db.session() as session:
+            from app.models.document import Document as DocumentModel
+            result = await session.execute(
+                select(DocumentModel).where(DocumentModel.id == document_id)
+            )
+            doc = result.scalar_one_or_none()
+            if doc:
+                doc.summary = summary.model_dump_json()
+                doc.status = DocumentStatus.ready
+                doc.stage = None
+    
+    return summary
+
+
+@router.get(
+    "/{document_id}/summary",
+    response_model=PaperSummary,
+    responses=_SUMMARY_ERRORS,
+)
+async def get_summary(
+    request: Request,
+    document_id: UUID,
+    user_id: UUID = Depends(get_current_user),
+    sessions: SessionStore = Depends(get_sessions),
+) -> PaperSummary:
+    """Get cached summary for a document."""
+    _, doc_model = await _get_owned_document(document_id, user_id, sessions, request)
+    
+    db = get_database()
+    if db.is_connected and doc_model is not None and doc_model.summary is not None:
+        return PaperSummary.model_validate_json(doc_model.summary)
+    
+    raise AppError("not_ready", "Summary not yet generated.", 409)
 
 
 @router.post(
