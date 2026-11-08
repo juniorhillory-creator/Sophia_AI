@@ -5,10 +5,11 @@ from typing import Optional
 from uuid import UUID
 
 from jose import jwt
+from sqlalchemy import text
 
 from app.auth.password import get_password_service
 from app.core.settings import Settings, get_settings
-from app.db.session import get_db_session
+from app.db.session import get_database, get_db_session
 from app.domain.errors import AppError
 from app.models.user import (
     EmailVerificationToken,
@@ -34,6 +35,12 @@ class AuthService:
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
         self._password_service = get_password_service()
+        
+        # Load key files at initialization (python-jose has issues with file paths on Windows)
+        with open(self._settings.jwt_private_key_path, "r") as f:
+            self._private_key = f.read()
+        with open(self._settings.jwt_public_key_path, "r") as f:
+            self._public_key = f.read()
 
     def _create_tokens(self, user: User) -> tuple[str, str]:
         """Create access and refresh tokens for a user."""
@@ -48,7 +55,7 @@ class AuthService:
                 "iat": int(now.timestamp()),
                 "exp": int(access_expires.timestamp()),
             },
-            self._settings.jwt_private_key_path,
+            self._private_key,
             algorithm=self._settings.jwt_algorithm,
         )
 
@@ -59,7 +66,7 @@ class AuthService:
                 "iat": int(now.timestamp()),
                 "exp": int(refresh_expires.timestamp()),
             },
-            self._settings.jwt_private_key_path,
+            self._private_key,
             algorithm=self._settings.jwt_algorithm,
         )
 
@@ -70,10 +77,11 @@ class AuthService:
 
     async def register(self, data: RegisterRequest) -> tuple[str, str, User]:
         """Register a new user."""
-        async with get_db_session() as session:
+        db = get_database()
+        async with db.session() as session:
             # Check if username or email already exists
             existing = await session.execute(
-                "SELECT 1 FROM users WHERE username = :username OR email = :email",
+                text("SELECT 1 FROM users WHERE username = :username OR email = :email"),
                 {"username": data.username, "email": data.email},
             )
             if existing.scalar_one_or_none():
@@ -96,13 +104,14 @@ class AuthService:
 
     async def login(self, data: LoginRequest) -> tuple[str, str, User]:
         """Authenticate user with username/email and password."""
-        async with get_db_session() as session:
-            # Find user by username or email
-            user = await session.execute(
-                "SELECT * FROM users WHERE username = :identifier OR email = :identifier",
-                {"identifier": data.username_or_email},
+        db = get_database()
+        async with db.session() as session:
+            # Find user by username or email using ORM
+            from sqlalchemy import select, or_
+            result = await session.execute(
+                select(User).where(or_(User.username == data.username_or_email, User.email == data.username_or_email))
             )
-            user = user.scalar_one_or_none()
+            user = result.scalar_one_or_none()
 
             if user is None or user.password_hash is None:
                 raise AppError("invalid_credentials", "Invalid username/email or password.", 401)
@@ -128,7 +137,7 @@ class AuthService:
         try:
             payload = jwt.decode(
                 refresh_token,
-                self._settings.jwt_public_key_path,
+                self._public_key,
                 algorithms=[self._settings.jwt_algorithm],
             )
         except jwt.ExpiredSignatureError:
@@ -141,7 +150,8 @@ class AuthService:
 
         user_id = UUID(payload["sub"])
 
-        async with get_db_session() as session:
+        db = get_database()
+        async with db.session() as session:
             user = await session.get("User", payload["sub"])
             if user is None or not user.is_active:
                 raise AppError("invalid_token", "Invalid refresh token.", 401)
@@ -156,7 +166,8 @@ class AuthService:
 
     async def forgot_password(self, data: ForgotPasswordRequest) -> str:
         """Request password reset token."""
-        async with get_db_session() as session:
+        db = get_database()
+        async with db.session() as session:
             user = await session.execute(
                 "SELECT * FROM users WHERE username = :identifier OR email = :identifier",
                 {"identifier": data.username_or_email},
@@ -186,7 +197,8 @@ class AuthService:
         """Reset password using token."""
         token_hash = hashlib.sha256(data.token.encode()).hexdigest()
 
-        async with get_db_session() as session:
+        db = get_database()
+        async with db.session() as session:
             token = await session.execute(
                 "SELECT * FROM password_reset_tokens WHERE token_hash = :hash AND used_at IS NULL AND expires_at > :now",
                 {"hash": token_hash, "now": datetime.now(timezone.utc)},
