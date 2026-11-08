@@ -2,12 +2,14 @@ import logging
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import PurePath
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from app.core.settings import Settings
+from app.db.session import get_database
 from app.domain.errors import AppError
 from app.infrastructure.chunking import chunk_pages
 from app.infrastructure.pdf import extract_pages
+from app.models.document import Document as DocumentModel
 from app.schemas.models import Chunk, Document
 from app.services.sessions import DocumentSession, SessionStore
 
@@ -35,10 +37,12 @@ class IngestionService:
         settings: Settings,
         sessions: SessionStore,
         index_chunks: Callable[[list[Chunk]], None] | None = None,
+        user_id: UUID | None = None,
     ) -> None:
         self._settings = settings
         self._sessions = sessions
         self._index_chunks = index_chunks
+        self._user_id = user_id
 
     def ingest(self, filename: str | None, content_type: str | None, data: bytes) -> Document:
         safe_name = validate_declared_file(filename, content_type)
@@ -56,6 +60,26 @@ class IngestionService:
                 "This PDF has no extractable text. Scanned pages are not supported.",
                 400,
             )
+        
+        # Create document in PostgreSQL if user_id is provided and database is connected
+        if self._user_id is not None:
+            db = get_database()
+            if db.is_connected:
+                import asyncio
+                async def create_doc():
+                    async with db.session() as session:
+                        doc_model = DocumentModel(
+                            id=document_id,
+                            user_id=self._user_id,
+                            filename=safe_name,
+                            page_count=len(pages),
+                            chunk_count=len(chunks),
+                        )
+                        session.add(doc_model)
+                asyncio.run(create_doc())
+            else:
+                logger.warning("database_not_connected_skipping_document_creation")
+        
         document = Document(
             id=document_id,
             filename=safe_name,

@@ -17,21 +17,16 @@ def _app(settings: Settings | None = None):
     return create_app(resolved, embedder=HashEmbedder(), vectors=ChromaStore.memory())
 
 
-def _client(max_upload_bytes: int = 20 * 1024 * 1024) -> TestClient:
-    settings = Settings(max_upload_bytes=max_upload_bytes, chunk_size=200, chunk_overlap=20)
-    return TestClient(_app(settings))
-
-
 def test_health() -> None:
-    client = _client()
+    client = TestClient(_app())
     for path in ("/health", "/api/v1/health"):
         response = client.get(path)
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
 
 
-def test_upload_returns_metadata_and_page_chunks() -> None:
-    client = _client()
+def test_upload_returns_metadata_and_page_chunks(auth_client: TestClient) -> None:
+    client = auth_client
     pdf = build_pdf(["Page one finding", "Page two finding"])
     response = client.post(
         "/api/v1/documents",
@@ -52,8 +47,8 @@ def test_upload_returns_metadata_and_page_chunks() -> None:
     assert any("Page two finding" in chunk["text"] and chunk["page_number"] == 2 for chunk in stored)
 
 
-def test_sessions_are_isolated_over_http() -> None:
-    client = _client()
+def test_sessions_are_isolated_over_http(auth_client: TestClient) -> None:
+    client = auth_client
     first = client.post(
         "/api/v1/documents",
         files={"file": ("a.pdf", build_pdf(["ALPHA-HTTP-TOKEN"]), "application/pdf")},
@@ -71,14 +66,15 @@ def test_sessions_are_isolated_over_http() -> None:
     assert "ALPHA-HTTP-TOKEN" not in second_chunks
 
 
-def test_unknown_document_is_not_found() -> None:
-    response = _client().get(f"/api/v1/documents/{uuid4()}")
+def test_unknown_document_is_not_found(auth_client: TestClient) -> None:
+    client = auth_client
+    response = client.get(f"/api/v1/documents/{uuid4()}")
     assert response.status_code == 404
     assert response.json() == {"code": "not_found", "message": "Document not found."}
 
 
-def test_rejects_bad_extension_mime_empty_and_oversize() -> None:
-    client = _client()
+def test_rejects_bad_extension_mime_empty_and_oversize(auth_client: TestClient) -> None:
+    client = auth_client
     pdf = build_pdf(["A short finding"])
 
     extension = client.post(
@@ -93,12 +89,26 @@ def test_rejects_bad_extension_mime_empty_and_oversize() -> None:
         "/api/v1/documents",
         files={"file": ("blank.pdf", build_pdf([""]), "application/pdf")},
     )
-    oversize = _client(max_upload_bytes=32).post(
+    
+    # Create separate clients for different max_upload_bytes settings
+    oversize_app = _app(Settings(max_upload_bytes=32, chunk_size=200, chunk_overlap=20))
+    # Override auth for test
+    from app.dependencies import get_current_user
+    from uuid import UUID
+    TEST_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
+    oversize_app.dependency_overrides[get_current_user] = lambda: TEST_USER_ID
+    oversize_client = TestClient(oversize_app)
+    oversize = oversize_client.post(
         "/api/v1/documents",
         files={"file": ("big.pdf", b"%PDF" + (b"x" * 64), "application/pdf")},
     )
+    
     missing = client.post("/api/v1/documents")
-    huge = _client(max_upload_bytes=32).post(
+    
+    huge_app = _app(Settings(max_upload_bytes=32, chunk_size=200, chunk_overlap=20))
+    huge_app.dependency_overrides[get_current_user] = lambda: TEST_USER_ID
+    huge_client = TestClient(huge_app)
+    huge = huge_client.post(
         "/api/v1/documents",
         content=b"x" * (32 + 64 * 1024 + 1),
         headers={"content-type": "multipart/form-data; boundary=abc"},
@@ -118,11 +128,10 @@ def test_rejects_bad_extension_mime_empty_and_oversize() -> None:
         assert "Traceback" not in response.text
 
 
-def test_summary_endpoint_returns_the_schema() -> None:
-    app = _app()
+def test_summary_endpoint_returns_the_schema(auth_client: TestClient) -> None:
+    client = auth_client
     llm = ScriptedLlm([_summary(title="From paper")])
-    app.state.llm = llm
-    client = TestClient(app)
+    client.app.state.llm = llm
     uploaded = client.post(
         "/api/v1/documents",
         files={"file": ("study.pdf", build_pdf(["UNIQUE-PAPER-SENTENCE"]), "application/pdf")},
@@ -145,12 +154,11 @@ def test_summary_endpoint_returns_the_schema() -> None:
     assert "Traceback" not in response.text
 
 
-def test_summary_errors_for_missing_document_and_model_failure() -> None:
-    app = _app()
-    app.state.llm = ScriptedLlm(
+def test_summary_errors_for_missing_document_and_model_failure(auth_client: TestClient) -> None:
+    client = auth_client
+    client.app.state.llm = ScriptedLlm(
         [AppError("model_timeout", "The local model timed out.", 504)]
     )
-    client = TestClient(app)
     missing = client.post(f"/api/v1/documents/{uuid4()}/summary")
     assert missing.status_code == 404
     assert missing.json()["code"] == "not_found"
@@ -165,10 +173,9 @@ def test_summary_errors_for_missing_document_and_model_failure() -> None:
     assert "Traceback" not in failed.text
 
 
-def test_question_cites_the_stored_page() -> None:
-    app = _app(Settings(similarity_threshold=0.2))
-    app.state.llm = ScriptedLlm(["The yield rose. See page 99."])
-    client = TestClient(app)
+def test_question_cites_the_stored_page(auth_client: TestClient) -> None:
+    client = auth_client
+    client.app.state.llm = ScriptedLlm(["The yield rose. See page 99."])
     missing = client.post(
         f"/api/v1/documents/{uuid4()}/questions",
         json={"question": "What changed?"},
@@ -195,7 +202,7 @@ def test_question_cites_the_stored_page() -> None:
     assert body["sources"][0]["chunk_id"]
     assert "Traceback" not in response.text
 
-    app.state.llm = ScriptedLlm([INSUFFICIENT])
+    client.app.state.llm = ScriptedLlm([INSUFFICIENT])
     empty = client.post(
         f"/api/v1/documents/{document_id}/questions",
         json={"question": "catalyst increased yield"},

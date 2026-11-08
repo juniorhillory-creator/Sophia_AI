@@ -13,6 +13,10 @@ class Database:
         self._engine: AsyncEngine | None = None
         self._session_factory: async_sessionmaker[AsyncSession] | None = None
 
+    @property
+    def is_connected(self) -> bool:
+        return self._engine is not None
+
     def connect(self) -> None:
         if self._engine is not None:
             return
