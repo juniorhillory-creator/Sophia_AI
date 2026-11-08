@@ -6,6 +6,7 @@ from jose import jwt
 from jose.exceptions import ExpiredSignatureError, JWTError
 
 from app.core.settings import Settings
+from app.core.supabase import get_supabase_client, is_supabase_configured
 from app.db.session import get_database
 from app.domain.errors import AppError
 from app.services.ingestion import IngestionService
@@ -52,8 +53,21 @@ async def get_current_user(request: Request) -> UUID:
     if not auth or not auth.startswith("Bearer "):
         raise AppError("unauthorized", "Missing or invalid Authorization header", 401)
     
-    token = auth[7:]
+    token = auth[7:].strip()
+    if not token:
+        raise AppError("unauthorized", "Missing or invalid Authorization header", 401)
+
     settings = request.app.state.settings
+    if is_supabase_configured(settings):
+        sb = get_supabase_client(settings)
+        if sb:
+            try:
+                user_res = sb.auth.get_user(token)
+                if user_res and user_res.user:
+                    return UUID(user_res.user.id)
+            except Exception:
+                pass
+
     public_key = _load_public_key(settings)
     
     try:
