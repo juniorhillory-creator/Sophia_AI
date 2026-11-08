@@ -6,6 +6,7 @@ from typing import Optional
 from uuid import UUID
 
 from jose import jwt
+from jose.exceptions import ExpiredSignatureError, JWTError
 from sqlalchemy import or_, select, text
 
 from app.auth.password import get_password_service
@@ -152,9 +153,9 @@ class AuthService:
                 public_key,
                 algorithms=[self._settings.jwt_algorithm],
             )
-        except jwt.ExpiredSignatureError:
+        except ExpiredSignatureError:
             raise AppError("token_expired", "Refresh token has expired.", 401)
-        except jwt.JWTError:
+        except JWTError:
             raise AppError("invalid_token", "Invalid refresh token.", 401)
 
         if payload.get("type") != "refresh":
