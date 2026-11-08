@@ -10,8 +10,8 @@ from app.main import create_app
 from tests.embedder import HashEmbedder
 
 
-# Test user ID for authentication
-TEST_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
+# Default test user ID - used for authenticated test clients
+DEFAULT_TEST_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
 
 
 @pytest.fixture
@@ -22,7 +22,7 @@ def auth_client() -> TestClient:
     
     # Override get_current_user to return test user without database
     from app.dependencies import get_current_user
-    app.dependency_overrides[get_current_user] = lambda: TEST_USER_ID
+    app.dependency_overrides[get_current_user] = lambda: DEFAULT_TEST_USER_ID
     
     client = TestClient(app)
     return client
