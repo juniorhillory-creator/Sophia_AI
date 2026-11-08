@@ -11,6 +11,7 @@ from sqlalchemy import or_, select, text
 
 from app.auth.password import get_password_service
 from app.core.settings import Settings, get_settings
+from app.core.supabase import get_supabase_client, is_supabase_configured
 from app.db.session import get_database, get_db_session
 from app.domain.errors import AppError
 from app.models.user import (
@@ -93,6 +94,42 @@ class AuthService:
 
     async def register(self, data: RegisterRequest) -> tuple[str, str, User]:
         """Register a new user."""
+        if is_supabase_configured(self._settings):
+            client = get_supabase_client(self._settings)
+            if client:
+                try:
+                    admin_res = client.auth.admin.create_user({
+                        "email": data.email,
+                        "password": data.password,
+                        "email_confirm": True,
+                        "user_metadata": {"username": data.username},
+                    })
+                    created_user = admin_res.user
+                    sign_in_res = client.auth.sign_in_with_password({
+                        "email": data.email,
+                        "password": data.password,
+                    })
+                    access_token = sign_in_res.session.access_token if sign_in_res.session else ""
+                    refresh_token = sign_in_res.session.refresh_token if sign_in_res.session else ""
+                    now = datetime.now(timezone.utc)
+                    user = User(
+                        id=UUID(created_user.id),
+                        username=data.username,
+                        email=data.email,
+                        is_active=True,
+                        is_verified=True,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                    return access_token, refresh_token, user
+                except AppError:
+                    raise
+                except Exception as exc:
+                    err_str = str(exc).lower()
+                    if "already registered" in err_str or "already exists" in err_str:
+                        raise AppError("conflict", "Username or email already registered.", 409)
+                    raise AppError("registration_failed", str(exc), 400)
+
         db = get_database()
         async with db.session() as session:
             # Check if username or email already exists
@@ -120,6 +157,45 @@ class AuthService:
 
     async def login(self, data: LoginRequest) -> tuple[str, str, User]:
         """Authenticate user with username/email and password."""
+        if is_supabase_configured(self._settings):
+            client = get_supabase_client(self._settings)
+            if client:
+                email = data.username_or_email
+                if "@" not in email:
+                    try:
+                        profile_res = client.table("profiles").select("email").eq("username", email).execute()
+                        if profile_res.data and profile_res.data[0].get("email"):
+                            email = profile_res.data[0]["email"]
+                    except Exception:
+                        pass
+                try:
+                    sign_in_res = client.auth.sign_in_with_password({
+                        "email": email,
+                        "password": data.password,
+                    })
+                    sb_user = sign_in_res.user
+                    sb_session = sign_in_res.session
+                    if not sb_user or not sb_session:
+                        raise AppError("invalid_credentials", "Invalid username/email or password.", 401)
+                    now = datetime.now(timezone.utc)
+                    user = User(
+                        id=UUID(sb_user.id),
+                        username=sb_user.user_metadata.get("username", email.split("@")[0]),
+                        email=sb_user.email or email,
+                        is_active=True,
+                        is_verified=True,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                    return sb_session.access_token, sb_session.refresh_token, user
+                except AppError:
+                    raise
+                except Exception as exc:
+                    err_str = str(exc).lower()
+                    if "invalid" in err_str or "credentials" in err_str:
+                        raise AppError("invalid_credentials", "Invalid username/email or password.", 401)
+                    raise AppError("login_failed", str(exc), 400)
+
         db = get_database()
         async with db.session() as session:
             result = await session.execute(
@@ -146,6 +222,16 @@ class AuthService:
 
     async def refresh_tokens(self, refresh_token: str) -> tuple[str, str]:
         """Refresh access token using refresh token."""
+        if is_supabase_configured(self._settings):
+            client = get_supabase_client(self._settings)
+            if client:
+                try:
+                    res = client.auth.refresh_session(refresh_token)
+                    if res.session:
+                        return res.session.access_token, res.session.refresh_token
+                except Exception:
+                    raise AppError("token_expired", "Refresh token has expired or is invalid.", 401)
+
         _, public_key = self._get_keys()
         try:
             payload = jwt.decode(

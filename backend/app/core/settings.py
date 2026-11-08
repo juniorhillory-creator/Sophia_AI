@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", "backend/.env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "llama3.2"
     ollama_timeout_seconds: float = 120
+    ollama_num_gpu: int | None = None
     embedding_model: str = "all-MiniLM-L6-v2"
     chroma_path: str = "data/chroma"
     retrieval_top_k: int = 4
