@@ -17,7 +17,13 @@ DEFAULT_TEST_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
 @pytest.fixture
 def auth_client() -> TestClient:
     """Create an authenticated test client with mocked get_current_user."""
-    settings = Settings(chunk_size=200, chunk_overlap=20)
+    settings = Settings(
+        chunk_size=200,
+        chunk_overlap=20,
+        supabase_url="",
+        supabase_publishable_key="",
+        supabase_secret_key="",
+    )
     app = create_app(settings, embedder=HashEmbedder(), vectors=ChromaStore.memory())
     
     # Override get_current_user to return test user without database

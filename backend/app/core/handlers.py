@@ -21,10 +21,29 @@ def register_error_handlers(app: FastAPI) -> None:
         return JSONResponse(status_code=exc.status_code, content=_body(exc.code, exc.message))
 
     @app.exception_handler(RequestValidationError)
-    async def validation_handler(_request: Request, _exc: RequestValidationError) -> JSONResponse:
+    async def validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+        errors = exc.errors()
+        messages: list[str] = []
+        for err in errors:
+            loc = err.get("loc", ())
+            field = [str(x) for x in loc if x != "body"]
+            field_name = ".".join(field) if field else ""
+            raw_msg = err.get("msg", "Invalid value")
+            clean_msg = raw_msg.removeprefix("Value error, ").strip()
+            messages.append(f"{field_name}: {clean_msg}" if field_name else clean_msg)
+
+        detail_msg = "; ".join(messages) if messages else "Request validation failed."
+        logger.warning(
+            "validation_error",
+            extra={
+                "http_path": request.url.path,
+                "http_method": request.method,
+                "validation_errors": detail_msg,
+            },
+        )
         return JSONResponse(
             status_code=422,
-            content=_body("validation_error", "Request validation failed."),
+            content=_body("validation_error", detail_msg),
         )
 
     @app.exception_handler(HTTPException)
