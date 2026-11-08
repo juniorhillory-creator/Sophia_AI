@@ -94,9 +94,8 @@ def test_rejects_bad_extension_mime_empty_and_oversize(auth_client: TestClient) 
     oversize_app = _app(Settings(max_upload_bytes=32, chunk_size=200, chunk_overlap=20))
     # Override auth for test
     from app.dependencies import get_current_user
-    from uuid import UUID
-    TEST_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
-    oversize_app.dependency_overrides[get_current_user] = lambda: TEST_USER_ID
+    from tests.conftest import DEFAULT_TEST_USER_ID
+    oversize_app.dependency_overrides[get_current_user] = lambda: DEFAULT_TEST_USER_ID
     oversize_client = TestClient(oversize_app)
     oversize = oversize_client.post(
         "/api/v1/documents",
@@ -106,7 +105,7 @@ def test_rejects_bad_extension_mime_empty_and_oversize(auth_client: TestClient) 
     missing = client.post("/api/v1/documents")
     
     huge_app = _app(Settings(max_upload_bytes=32, chunk_size=200, chunk_overlap=20))
-    huge_app.dependency_overrides[get_current_user] = lambda: TEST_USER_ID
+    huge_app.dependency_overrides[get_current_user] = lambda: DEFAULT_TEST_USER_ID
     huge_client = TestClient(huge_app)
     huge = huge_client.post(
         "/api/v1/documents",

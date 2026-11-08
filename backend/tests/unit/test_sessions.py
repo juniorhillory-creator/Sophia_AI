@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from app.core.log_config import JsonFormatter, configure_logging
@@ -13,10 +14,14 @@ def _service() -> tuple[IngestionService, SessionStore]:
     return IngestionService(settings, store), store
 
 
+async def _ingest_async(service: IngestionService, filename: str, content_type: str, data: bytes):
+    return await service.ingest(filename, content_type, data)
+
+
 def test_sessions_do_not_share_document_text() -> None:
     service, store = _service()
-    first = service.ingest("alpha.pdf", "application/pdf", build_pdf(["ALPHA-ONLY-TOKEN"]))
-    second = service.ingest("beta.pdf", "application/pdf", build_pdf(["BETA-ONLY-TOKEN"]))
+    first = asyncio.run(_ingest_async(service, "alpha.pdf", "application/pdf", build_pdf(["ALPHA-ONLY-TOKEN"])))
+    second = asyncio.run(_ingest_async(service, "beta.pdf", "application/pdf", build_pdf(["BETA-ONLY-TOKEN"])))
 
     first_session = store.get(first.id)
     second_session = store.get(second.id)
@@ -34,7 +39,7 @@ def test_sessions_do_not_share_document_text() -> None:
 
 def test_session_reads_are_copies() -> None:
     service, store = _service()
-    document = service.ingest("paper.pdf", "application/pdf", build_pdf(["Finding one"]))
+    document = asyncio.run(_ingest_async(service, "paper.pdf", "application/pdf", build_pdf(["Finding one"])))
     fetched = store.get(document.id)
     assert fetched is not None
     fetched.chunks.clear()
@@ -56,7 +61,7 @@ def test_stored_log_does_not_include_document_text() -> None:
     logging.getLogger("sophia").addHandler(Capture())
     try:
         service, _store = _service()
-        service.ingest("paper.pdf", "application/pdf", build_pdf(["UNIQUEPAPERTOKEN"]))
+        asyncio.run(_ingest_async(service, "paper.pdf", "application/pdf", build_pdf(["UNIQUEPAPERTOKEN"])))
     finally:
         logging.getLogger("sophia").handlers.pop()
 
