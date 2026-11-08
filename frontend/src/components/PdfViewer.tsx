@@ -1,10 +1,14 @@
-import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy, type RenderTask } from "pdfjs-dist";
+import {
+  getDocument,
+  GlobalWorkerOptions,
+  type PDFDocumentProxy,
+  type RenderTask,
+} from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { useEffect, useRef, useState } from "react";
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
-<<<<<<< HEAD
 interface PdfViewerProps {
   file: File | Blob;
   page: number;
@@ -12,57 +16,37 @@ interface PdfViewerProps {
   filename?: string;
 }
 
-export function PdfViewer({ file, page, onPageChange, filename }: PdfViewerProps) {
-=======
-// shortcut: canvas has no text layer; add one if users need to select page text
-
-interface PdfViewerProps {
-  file: File;
-  page: number;
-  onPageChange: (page: number) => void;
-}
-
-export function PdfViewer({ file, page, onPageChange }: PdfViewerProps) {
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
+export function PdfViewer({
+  file,
+  page,
+  onPageChange,
+  filename,
+}: PdfViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [width, setWidth] = useState(0);
-<<<<<<< HEAD
   const [zoomMultiplier, setZoomMultiplier] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-=======
-  const [error, setError] = useState<string | null>(null);
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
   const pageCount = pdf?.numPages ?? 0;
   const safePage = pageCount > 0 ? Math.min(Math.max(1, page), pageCount) : 1;
 
   useEffect(() => {
     let dead = false;
     let loaded: PDFDocumentProxy | null = null;
-<<<<<<< HEAD
     let loadingTask: { destroy: () => Promise<void> } | null = null;
     setPdf(null);
     setError(null);
     setLoading(true);
 
-=======
-    let loading: { destroy: () => Promise<void> } | null = null;
-    setPdf(null);
-    setError(null);
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     void (async () => {
       try {
         const buffer = await file.arrayBuffer();
         if (dead) return;
         const task = getDocument({ data: new Uint8Array(buffer) });
-<<<<<<< HEAD
         loadingTask = task;
-=======
-        loading = task;
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
         const doc = await task.promise;
         if (dead) {
           await doc.destroy();
@@ -70,7 +54,6 @@ export function PdfViewer({ file, page, onPageChange }: PdfViewerProps) {
         }
         loaded = doc;
         setPdf(doc);
-<<<<<<< HEAD
         setLoading(false);
       } catch {
         if (!dead) {
@@ -84,16 +67,6 @@ export function PdfViewer({ file, page, onPageChange }: PdfViewerProps) {
       dead = true;
       if (loaded) void loaded.destroy();
       else void loadingTask?.destroy();
-=======
-      } catch {
-        if (!dead) setError("This PDF could not be opened.");
-      }
-    })();
-    return () => {
-      dead = true;
-      if (loaded) void loaded.destroy();
-      else void loading?.destroy();
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     };
   }, [file]);
 
@@ -115,40 +88,25 @@ export function PdfViewer({ file, page, onPageChange }: PdfViewerProps) {
     if (!canvas || !pdf || width < 1) return;
     let dead = false;
     let task: RenderTask | null = null;
-<<<<<<< HEAD
 
-=======
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     void pdf.getPage(safePage).then(
       (pdfPage) => {
         if (dead) return;
         const base = pdfPage.getViewport({ scale: 1 });
-<<<<<<< HEAD
         const baseScale = Math.max(width - 48, 280) / base.width;
         const scale = baseScale * zoomMultiplier;
         const viewport = pdfPage.getViewport({ scale });
         const pixelRatio = window.devicePixelRatio || 1;
 
-=======
-        const scale = Math.max(width - 32, 280) / base.width;
-        const viewport = pdfPage.getViewport({ scale });
-        const pixelRatio = window.devicePixelRatio || 1;
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
         canvas.width = Math.floor(viewport.width * pixelRatio);
         canvas.height = Math.floor(viewport.height * pixelRatio);
         canvas.style.width = `${viewport.width}px`;
         canvas.style.height = `${viewport.height}px`;
-<<<<<<< HEAD
 
         const context = canvas.getContext("2d");
         if (!context) return;
         context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
 
-=======
-        const context = canvas.getContext("2d");
-        if (!context) return;
-        context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
         task = pdfPage.render({ canvasContext: context, viewport });
         return task.promise.catch((renderError: unknown) => {
           if (dead) return;
@@ -161,19 +119,17 @@ export function PdfViewer({ file, page, onPageChange }: PdfViewerProps) {
         if (!dead) setError("This page could not be drawn.");
       },
     );
-<<<<<<< HEAD
 
-=======
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     return () => {
       dead = true;
       task?.cancel();
     };
-<<<<<<< HEAD
   }, [pdf, safePage, width, zoomMultiplier]);
 
-  const handleZoomIn = () => setZoomMultiplier((prev) => Math.min(prev + 0.25, 2.5));
-  const handleZoomOut = () => setZoomMultiplier((prev) => Math.max(prev - 0.25, 0.5));
+  const handleZoomIn = () =>
+    setZoomMultiplier((prev) => Math.min(prev + 0.25, 2.5));
+  const handleZoomOut = () =>
+    setZoomMultiplier((prev) => Math.max(prev - 0.25, 0.5));
   const handleResetZoom = () => setZoomMultiplier(1);
 
   return (
@@ -182,7 +138,10 @@ export function PdfViewer({ file, page, onPageChange }: PdfViewerProps) {
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200 bg-white/95 px-4 py-2 backdrop-blur shadow-sm">
         <div className="flex items-center gap-2">
           {filename && (
-            <span className="max-w-[200px] truncate text-xs font-medium text-stone-600 sm:max-w-[260px]" title={filename}>
+            <span
+              className="max-w-[200px] truncate text-xs font-medium text-stone-600 sm:max-w-[260px]"
+              title={filename}
+            >
               {filename}
             </span>
           )}
@@ -202,7 +161,13 @@ export function PdfViewer({ file, page, onPageChange }: PdfViewerProps) {
               aria-label="Previous Page"
               title="Previous Page"
             >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <polyline points="15 18 9 12 15 6" />
               </svg>
             </button>
@@ -217,7 +182,13 @@ export function PdfViewer({ file, page, onPageChange }: PdfViewerProps) {
               aria-label="Next Page"
               title="Next Page"
             >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <polyline points="9 18 15 12 9 6" />
               </svg>
             </button>
@@ -232,7 +203,13 @@ export function PdfViewer({ file, page, onPageChange }: PdfViewerProps) {
               aria-label="Zoom out"
               title="Zoom out"
             >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 <line x1="8" y1="11" x2="14" y2="11" />
@@ -254,7 +231,13 @@ export function PdfViewer({ file, page, onPageChange }: PdfViewerProps) {
               aria-label="Zoom in"
               title="Zoom in"
             >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 <line x1="11" y1="8" x2="11" y2="14" />
@@ -266,47 +249,21 @@ export function PdfViewer({ file, page, onPageChange }: PdfViewerProps) {
       </div>
 
       {/* PDF Canvas Viewport */}
-=======
-  }, [pdf, safePage, width]);
-
-  return (
-    <div className="flex h-full min-h-0 flex-col bg-[#efece8]">
-      <div className="flex items-center justify-between gap-3 border-b border-stone-200 bg-white px-4 py-2">
-        <p className="text-sm text-stone-600">
-          {pageCount > 0 ? `Page ${safePage} of ${pageCount}` : "Opening PDF"}
-        </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            className="px-3 py-1.5 text-sm text-stone-800 disabled:text-stone-400 rounded-lg hover:bg-stone-100 focus:ring-2 focus:ring-brand focus:ring-offset-2"
-            onClick={() => onPageChange(safePage - 1)}
-            disabled={pageCount === 0 || safePage <= 1}
-          >
-            Previous
-          </button>
-          <button
-            type="button"
-            className="px-3 py-1.5 text-sm text-stone-800 disabled:text-stone-400 rounded-lg hover:bg-stone-100 focus:ring-2 focus:ring-brand focus:ring-offset-2"
-            onClick={() => onPageChange(safePage + 1)}
-            disabled={pageCount === 0 || safePage >= pageCount}
-          >
-            Next
-          </button>
-        </div>
-      </div>
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
       <div
         id="pdf-viewer"
         ref={frameRef}
         tabIndex={-1}
-<<<<<<< HEAD
-        aria-label={pageCount > 0 ? `PDF, page ${safePage} of ${pageCount}` : "PDF Viewer"}
+        aria-label={
+          pageCount > 0 ? `PDF, page ${safePage} of ${pageCount}` : "PDF Viewer"
+        }
         className="min-h-0 flex-1 overflow-auto p-4 sm:p-6 outline-none scrollbar-thin"
       >
         {loading && (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-stone-500">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand border-t-transparent" />
-            <p className="text-sm font-medium">Opening scientific manuscript...</p>
+            <p className="text-sm font-medium">
+              Opening scientific manuscript...
+            </p>
           </div>
         )}
         {error ? (
@@ -322,17 +279,6 @@ export function PdfViewer({ file, page, onPageChange }: PdfViewerProps) {
               loading ? "hidden" : "block"
             }`}
           />
-=======
-        aria-label={pageCount > 0 ? `PDF, page ${safePage} of ${pageCount}` : "PDF"}
-        className="min-h-0 flex-1 overflow-auto px-4 py-6 outline-none"
-      >
-        {error ? (
-          <p role="alert" className="text-sm text-red-800">
-            {error}
-          </p>
-        ) : (
-          <canvas ref={canvasRef} className="mx-auto border border-stone-300 bg-white" />
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
         )}
       </div>
     </div>
