@@ -1,21 +1,27 @@
 import asyncio
+import json
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
+from sqlalchemy import select
 
 from app.core.settings import Settings
 from app.dependencies import get_current_user, get_ingestion, get_llm, get_rag, get_sessions, get_settings
 from app.db.session import get_database
 from app.domain.errors import AppError
-from app.models.document import Document as DocumentModel
+from app.models.document import Document as DocumentModel, DocumentStatus as ModelDocumentStatus
 from app.schemas.models import (
     ChatResponse,
     ChunkList,
     Document,
+    DocumentStatus,
     ErrorBody,
+    INSUFFICIENT,
     PaperSummary,
+    ProcessingStage,
     QuestionRequest,
 )
 from app.services.ingestion import IngestionService
@@ -24,7 +30,6 @@ from app.services.rag import RagService
 from app.services.sessions import SessionStore
 from app.services.summary import summarize
 from app.services.uploads import read_pdf_upload
-from sqlalchemy import select
 
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
 
@@ -52,17 +57,17 @@ async def upload_document(
     user_id: UUID = Depends(get_current_user),
 ) -> Document:
     filename, content_type, data = await read_pdf_upload(request, settings.max_upload_bytes)
-    # ingestion.ingest is now async
     document = await ingestion.ingest(filename, content_type, data)
-    # Return document with status fields
     return Document(
         id=document.id,
         user_id=user_id,
         filename=document.filename,
         page_count=document.page_count,
         chunk_count=document.chunk_count,
-        status="processing",
-        stage="extracting",
+        status=DocumentStatus.ready,
+        stage=None,
+        error_code=None,
+        error_message=None,
         created_at=document.created_at,
         updated_at=document.created_at,
     )
@@ -78,18 +83,15 @@ async def list_documents(
     """List user's documents with pagination."""
     db = get_database()
     if not db.is_connected:
-        # Fallback to SessionStore for tests
         sessions = request.app.state.sessions
         docs = []
-        for session in sessions._sessions.values():
+        for session in sessions._items.values():
             doc = session.document
-            if hasattr(doc, 'user_id') and doc.user_id == user_id:
+            if hasattr(doc, "user_id") and doc.user_id == user_id:
                 docs.append(doc)
         return docs[offset:offset + limit]
-    
+
     async with db.session() as session:
-        from app.models.document import Document as DocumentModel
-        from sqlalchemy import select
         result = await session.execute(
             select(DocumentModel)
             .where(DocumentModel.user_id == user_id)
@@ -98,7 +100,7 @@ async def list_documents(
             .offset(offset)
         )
         docs = result.scalars().all()
-        
+
         return [
             Document(
                 id=doc.id,
@@ -106,8 +108,8 @@ async def list_documents(
                 filename=doc.filename,
                 page_count=doc.page_count,
                 chunk_count=doc.chunk_count,
-                status=doc.status.value,
-                stage=doc.stage.value if doc.stage else None,
+                status=DocumentStatus(doc.status.value),
+                stage=ProcessingStage(doc.stage.value) if doc.stage is not None else None,
                 error_code=doc.error_code,
                 error_message=doc.error_message,
                 created_at=doc.created_at,
@@ -126,27 +128,30 @@ async def delete_document(
 ) -> None:
     """Delete a document and all associated data."""
     # Verify ownership
-    session, doc_model = await _get_owned_document(document_id, user_id, sessions, request)
-    
+    await _get_owned_document(document_id, user_id, sessions, request)
+
     # Delete from database if connected
     db = get_database()
     if db.is_connected:
         async with db.session() as db_session:
-            from app.models.document import Document as DocumentModel
-            await db_session.delete(doc_model)
-    
+            result = await db_session.execute(
+                select(DocumentModel).where(DocumentModel.id == document_id)
+            )
+            doc_to_delete = result.scalar_one_or_none()
+            if doc_to_delete is not None:
+                await db_session.delete(doc_to_delete)
+
     # Delete from ChromaDB
-    chroma = request.app.state.rag._vectors
+    chroma = request.app.state.rag._store
     chroma.delete_by_document_id(document_id)
-    
+
     # Delete from filesystem
-    from app.core.settings import Settings
     settings = get_settings(request)
     data_dir = Path(settings.chroma_path).parent / "documents" / str(document_id)
     if data_dir.exists():
         import shutil
-        shutil.rmtree(data_dir)
-    
+        shutil.rmtree(data_dir, ignore_errors=True)
+
     # Delete from SessionStore
     sessions.delete(document_id)
 
@@ -157,23 +162,18 @@ async def _get_owned_document(
     sessions: SessionStore,
     request: Request,
 ) -> tuple:
-    """Get document from SessionStore and verify ownership via database if connected.
-    
-    Uses request-scoped cache to avoid repeated DB queries within the same request.
-    """
+    """Get document from SessionStore and verify ownership via database if connected."""
     session = sessions.get(document_id)
     if session is None:
         raise AppError("not_found", "Document not found.", 404)
-    
-    # Request-scoped cache for ownership verification
+
     cache_key = f"_owned_docs_{document_id}"
     cached = getattr(request.state, cache_key, None)
     if cached is not None:
         if not cached:
             raise AppError("not_found", "Document not found.", 404)
         return session, cached
-    
-    # Verify ownership in database if connected
+
     db = get_database()
     doc_model = None
     if db.is_connected:
@@ -184,12 +184,9 @@ async def _get_owned_document(
             doc_model = result.scalar_one_or_none()
             if doc_model is None or doc_model.user_id != user_id:
                 raise AppError("not_found", "Document not found.", 404)
-        # Cache successful verification
         setattr(request.state, cache_key, doc_model)
         return session, doc_model
-    
-    # Database not connected (e.g., in tests) - skip database ownership check
-    # SessionStore isolation provides basic protection in test environment
+
     setattr(request.state, cache_key, True)
     return session, None
 
@@ -216,7 +213,7 @@ async def get_chunks(
     return ChunkList(document_id=session.document.id, chunks=session.chunks)
 
 
-_SUMMARY_ERRORS = {
+_SUMMARY_ERRORS: dict[int | str, dict[str, Any]] = {
     404: {"model": ErrorBody},
     502: {"model": ErrorBody},
     503: {"model": ErrorBody},
@@ -239,33 +236,29 @@ async def create_summary(
 ) -> PaperSummary:
     """Generate and cache summary for a document."""
     session, doc_model = await _get_owned_document(document_id, user_id, sessions, request)
-    
-    # Check if summary already exists in database
+
     db = get_database()
     if db.is_connected and doc_model is not None and doc_model.summary is not None:
         return PaperSummary.model_validate_json(doc_model.summary)
-    
-    # Generate new summary
+
     summary = await asyncio.to_thread(
         summarize,
         session.pages,
         llm,
         settings.ollama_timeout_seconds,
     )
-    
-    # Cache summary in database if connected
+
     if db.is_connected:
-        async with db.session() as session:
-            from app.models.document import Document as DocumentModel
-            result = await session.execute(
+        async with db.session() as db_session:
+            result = await db_session.execute(
                 select(DocumentModel).where(DocumentModel.id == document_id)
             )
             doc = result.scalar_one_or_none()
             if doc:
                 doc.summary = summary.model_dump_json()
-                doc.status = DocumentStatus.ready
+                doc.status = ModelDocumentStatus.ready
                 doc.stage = None
-    
+
     return summary
 
 
@@ -282,11 +275,11 @@ async def get_summary(
 ) -> PaperSummary:
     """Get cached summary for a document."""
     _, doc_model = await _get_owned_document(document_id, user_id, sessions, request)
-    
+
     db = get_database()
     if db.is_connected and doc_model is not None and doc_model.summary is not None:
         return PaperSummary.model_validate_json(doc_model.summary)
-    
+
     raise AppError("not_ready", "Summary not yet generated.", 409)
 
 
@@ -327,35 +320,29 @@ async def ask_question_stream(
     settings: Settings = Depends(get_settings),
 ):
     """Stream answer chunks via Server-Sent Events."""
-    from fastapi.responses import StreamingResponse
-    
     session, _ = await _get_owned_document(document_id, user_id, sessions, request)
-    
+
     async def event_generator():
-        from app.services.rag import INSUFFICIENT
-        
         hits = rag.retrieve(document_id, question)
         if not hits:
             yield f"data: {INSUFFICIENT}\n\n"
             return
-        
+
         async for chunk in rag.answer_stream(document_id, question, llm, settings.ollama_timeout_seconds):
             yield f"data: {chunk}\n\n"
-        
-        # Send citations at the end
+
         citations = []
-        hits = rag.retrieve(document_id, question)
         for hit in hits:
             snippet = hit.text[:240].strip()
             if snippet:
                 citations.append({
                     "page": hit.page,
                     "excerpt": snippet[:240],
-                    "chunk_id": hit.chunk_id
+                    "chunk_id": hit.chunk_id,
                 })
         if citations:
             yield f"data: [CITATIONS]{json.dumps(citations)}\n\n"
-    
+
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
@@ -378,7 +365,6 @@ async def get_document_file(
     """Serve the original PDF file for the viewer."""
     session, _ = await _get_owned_document(document_id, user_id, sessions, request)
 
-    # Find the PDF file in the data directory
     data_dir = Path(settings.chroma_path).parent / "documents" / str(document_id)
     pdf_path = data_dir / "original.pdf"
 

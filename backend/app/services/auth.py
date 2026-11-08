@@ -1,11 +1,12 @@
 import hashlib
+from pathlib import Path
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID
 
 from jose import jwt
-from sqlalchemy import text
+from sqlalchemy import or_, select, text
 
 from app.auth.password import get_password_service
 from app.core.settings import Settings, get_settings
@@ -35,15 +36,29 @@ class AuthService:
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
         self._password_service = get_password_service()
-        
-        # Load key files at initialization (python-jose has issues with file paths on Windows)
-        with open(self._settings.jwt_private_key_path, "r") as f:
-            self._private_key = f.read()
-        with open(self._settings.jwt_public_key_path, "r") as f:
-            self._public_key = f.read()
+
+    def _get_keys(self) -> tuple[str, str]:
+        if not hasattr(self, "_private_key"):
+            priv_path = Path(self._settings.jwt_private_key_path)
+            if not priv_path.exists():
+                candidate = Path(__file__).resolve().parent.parent.parent / self._settings.jwt_private_key_path
+                if candidate.exists():
+                    priv_path = candidate
+            with open(priv_path, "r", encoding="utf-8") as f:
+                self._private_key = f.read()
+
+            pub_path = Path(self._settings.jwt_public_key_path)
+            if not pub_path.exists():
+                candidate = Path(__file__).resolve().parent.parent.parent / self._settings.jwt_public_key_path
+                if candidate.exists():
+                    pub_path = candidate
+            with open(pub_path, "r", encoding="utf-8") as f:
+                self._public_key = f.read()
+        return self._private_key, self._public_key
 
     def _create_tokens(self, user: User) -> tuple[str, str]:
         """Create access and refresh tokens for a user."""
+        private_key, _ = self._get_keys()
         now = datetime.now(timezone.utc)
         access_expires = now + timedelta(minutes=self._settings.access_token_expire_minutes)
         refresh_expires = now + timedelta(days=self._settings.refresh_token_expire_days)
@@ -55,7 +70,7 @@ class AuthService:
                 "iat": int(now.timestamp()),
                 "exp": int(access_expires.timestamp()),
             },
-            self._private_key,
+            private_key,
             algorithm=self._settings.jwt_algorithm,
         )
 
@@ -66,7 +81,7 @@ class AuthService:
                 "iat": int(now.timestamp()),
                 "exp": int(refresh_expires.timestamp()),
             },
-            self._private_key,
+            private_key,
             algorithm=self._settings.jwt_algorithm,
         )
 
@@ -81,8 +96,7 @@ class AuthService:
         async with db.session() as session:
             # Check if username or email already exists
             existing = await session.execute(
-                text("SELECT 1 FROM users WHERE username = :username OR email = :email"),
-                {"username": data.username, "email": data.email},
+                select(User).where(or_(User.username == data.username, User.email == data.email))
             )
             if existing.scalar_one_or_none():
                 raise AppError("conflict", "Username or email already registered.", 409)
@@ -97,6 +111,7 @@ class AuthService:
 
             session.add(user)
             await session.flush()
+            await session.refresh(user)
 
             # Create tokens
             access_token, refresh_token = self._create_tokens(user)
@@ -106,8 +121,6 @@ class AuthService:
         """Authenticate user with username/email and password."""
         db = get_database()
         async with db.session() as session:
-            # Find user by username or email using ORM
-            from sqlalchemy import select, or_
             result = await session.execute(
                 select(User).where(or_(User.username == data.username_or_email, User.email == data.username_or_email))
             )
@@ -117,8 +130,7 @@ class AuthService:
                 raise AppError("invalid_credentials", "Invalid username/email or password.", 401)
 
             # Verify password
-            password_service = get_password_service()
-            if not password_service.verify_password(data.password, user.password_hash):
+            if not self._password_service.verify_password(data.password, user.password_hash):
                 raise AppError("invalid_credentials", "Invalid username/email or password.", 401)
 
             if not user.is_active:
@@ -129,15 +141,15 @@ class AuthService:
 
             # Create tokens
             access_token, refresh_token = self._create_tokens(user)
-
             return access_token, refresh_token, user
 
     async def refresh_tokens(self, refresh_token: str) -> tuple[str, str]:
         """Refresh access token using refresh token."""
+        _, public_key = self._get_keys()
         try:
             payload = jwt.decode(
                 refresh_token,
-                self._public_key,
+                public_key,
                 algorithms=[self._settings.jwt_algorithm],
             )
         except jwt.ExpiredSignatureError:
@@ -152,27 +164,25 @@ class AuthService:
 
         db = get_database()
         async with db.session() as session:
-            user = await session.get("User", payload["sub"])
+            user = await session.get(User, user_id)
             if user is None or not user.is_active:
                 raise AppError("invalid_token", "Invalid refresh token.", 401)
 
-            access_token, refresh_token = self._create_tokens(user)
-            return access_token, refresh_token
+            access_token, new_refresh_token = self._create_tokens(user)
+            return access_token, new_refresh_token
 
     async def logout(self, access_token: str) -> None:
-        """Logout - currently just a no-op since tokens are stateless."""
-        # In a more complete implementation, you'd add token to a blocklist
+        """Logout - stateless JWT token."""
         pass
 
     async def forgot_password(self, data: ForgotPasswordRequest) -> str:
         """Request password reset token."""
         db = get_database()
         async with db.session() as session:
-            user = await session.execute(
-                "SELECT * FROM users WHERE username = :identifier OR email = :identifier",
-                {"identifier": data.username_or_email},
+            result = await session.execute(
+                select(User).where(or_(User.username == data.username_or_email, User.email == data.username_or_email))
             )
-            user = user.scalar_one_or_none()
+            user = result.scalar_one_or_none()
 
             # Always return success message to prevent user enumeration
             if user is None:
@@ -186,11 +196,10 @@ class AuthService:
             reset_token = PasswordResetToken(
                 user_id=user.id,
                 token_hash=token_hash,
-                expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+                expires_at=expires_at,
             )
+            session.add(reset_token)
 
-            # Store in DB
-            # For now, we'll just return the token (in production, send via email)
             return f"Reset token: {token}"
 
     async def reset_password(self, data: ResetPasswordRequest) -> None:
@@ -199,34 +208,30 @@ class AuthService:
 
         db = get_database()
         async with db.session() as session:
-            token = await session.execute(
-                "SELECT * FROM password_reset_tokens WHERE token_hash = :hash AND used_at IS NULL AND expires_at > :now",
-                {"hash": token_hash, "now": datetime.now(timezone.utc)},
+            result = await session.execute(
+                select(PasswordResetToken).where(
+                    PasswordResetToken.token_hash == token_hash,
+                    PasswordResetToken.used_at.is_(None),
+                    PasswordResetToken.expires_at > datetime.now(timezone.utc),
+                )
             )
-            token_obj = token.scalar_one_or_none()
+            token_obj = result.scalar_one_or_none()
 
             if token_obj is None:
                 raise AppError("invalid_token", "Invalid or expired reset token.", 400)
 
-            # Update password
-            password_service = get_password_service()
-            new_hash = get_password_service().hash_password(data.new_password)
+            user = await session.get(User, token_obj.user_id)
+            if user is None:
+                raise AppError("invalid_token", "User not found.", 400)
 
-            await session.execute(
-                "UPDATE users SET password_hash = :hash WHERE id = :id",
-                {"hash": password_service.hash_password(data.new_password), "id": token_obj.user_id},
-            )
-
-            # Mark token as used
+            user.password_hash = self._password_service.hash_password(data.new_password)
             token_obj.used_at = datetime.now(timezone.utc)
 
     async def google_auth(self, data: GoogleAuthRequest) -> tuple[str, str, User, bool]:
         """Authenticate via Google OAuth."""
-        # TODO: Implement Google OAuth token exchange
-        raise AppError("not_implemented", "Google OAuth not implemented yet.", 501)
+        raise AppError("not_implemented", "Google OAuth not configured.", 501)
 
     def _to_user_response(self, user: User) -> "UserResponse":
-        from app.schemas.auth import UserResponse
         return UserResponse(
             id=user.id,
             username=user.username,
@@ -240,27 +245,16 @@ class AuthService:
         )
 
     def _to_auth_response(self, user: User, access_token: str, refresh_token: str, is_new_user: bool = False) -> "AuthResponse":
-        from app.schemas.auth import AuthResponse, TokenResponse, UserResponse
         return AuthResponse(
-            user=UserResponse(
-                id=user.id,
-                username=user.username,
-                email=user.email,
-                full_name=user.full_name,
-                avatar_url=user.avatar_url,
-                is_active=user.is_active,
-                is_verified=user.is_verified,
-                created_at=user.created_at,
-                updated_at=user.updated_at,
-            ),
+            user=self._to_user_response(user),
             tokens=TokenResponse(
                 access_token=access_token,
                 refresh_token=refresh_token,
+                token_type="bearer",
             ),
         )
 
 
-# Module-level instance
 _auth_service: Optional["AuthService"] = None
 
 
