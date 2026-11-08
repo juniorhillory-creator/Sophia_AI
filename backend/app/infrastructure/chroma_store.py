@@ -74,6 +74,17 @@ class ChromaStore:
             )
         return _hits(result, min_score)
 
+    def delete_by_document_id(self, document_id: UUID) -> None:
+        """Delete all chunks for a given document_id."""
+        with self._lock:
+            # First get all chunk IDs for this document
+            result = self._collection.get(
+                where={"document_id": str(document_id)},
+                include=[]
+            )
+            if result.get("ids"):
+                self._collection.delete(ids=result["ids"])
+
 
 def _hits(result: dict, min_score: float) -> list[Hit]:
     ids = (result.get("ids") or [[]])[0] or []

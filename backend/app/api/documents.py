@@ -53,7 +53,102 @@ async def upload_document(
 ) -> Document:
     filename, content_type, data = await read_pdf_upload(request, settings.max_upload_bytes)
     # ingestion.ingest is now async
-    return await ingestion.ingest(filename, content_type, data)
+    document = await ingestion.ingest(filename, content_type, data)
+    # Return document with status fields
+    return Document(
+        id=document.id,
+        user_id=user_id,
+        filename=document.filename,
+        page_count=document.page_count,
+        chunk_count=document.chunk_count,
+        status="processing",
+        stage="extracting",
+        created_at=document.created_at,
+        updated_at=document.created_at,
+    )
+
+
+@router.get("", response_model=list[Document])
+async def list_documents(
+    request: Request,
+    user_id: UUID = Depends(get_current_user),
+    limit: int = 50,
+    offset: int = 0,
+) -> list[Document]:
+    """List user's documents with pagination."""
+    db = get_database()
+    if not db.is_connected:
+        # Fallback to SessionStore for tests
+        sessions = request.app.state.sessions
+        docs = []
+        for session in sessions._sessions.values():
+            doc = session.document
+            if hasattr(doc, 'user_id') and doc.user_id == user_id:
+                docs.append(doc)
+        return docs[offset:offset + limit]
+    
+    async with db.session() as session:
+        from app.models.document import Document as DocumentModel
+        from sqlalchemy import select
+        result = await session.execute(
+            select(DocumentModel)
+            .where(DocumentModel.user_id == user_id)
+            .order_by(DocumentModel.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        docs = result.scalars().all()
+        
+        return [
+            Document(
+                id=doc.id,
+                user_id=doc.user_id,
+                filename=doc.filename,
+                page_count=doc.page_count,
+                chunk_count=doc.chunk_count,
+                status=doc.status.value,
+                stage=doc.stage.value if doc.stage else None,
+                error_code=doc.error_code,
+                error_message=doc.error_message,
+                created_at=doc.created_at,
+                updated_at=doc.updated_at,
+            )
+            for doc in docs
+        ]
+
+
+@router.delete("/{document_id}", status_code=204)
+async def delete_document(
+    request: Request,
+    document_id: UUID,
+    user_id: UUID = Depends(get_current_user),
+    sessions: SessionStore = Depends(get_sessions),
+) -> None:
+    """Delete a document and all associated data."""
+    # Verify ownership
+    session, doc_model = await _get_owned_document(document_id, user_id, sessions, request)
+    
+    # Delete from database if connected
+    db = get_database()
+    if db.is_connected:
+        async with db.session() as db_session:
+            from app.models.document import Document as DocumentModel
+            await db_session.delete(doc_model)
+    
+    # Delete from ChromaDB
+    chroma = request.app.state.rag._vectors
+    chroma.delete_by_document_id(document_id)
+    
+    # Delete from filesystem
+    from app.core.settings import Settings
+    settings = get_settings(request)
+    data_dir = Path(settings.chroma_path).parent / "documents" / str(document_id)
+    if data_dir.exists():
+        import shutil
+        shutil.rmtree(data_dir)
+    
+    # Delete from SessionStore
+    sessions.delete(document_id)
 
 
 async def _get_owned_document(
