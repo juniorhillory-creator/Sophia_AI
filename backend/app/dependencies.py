@@ -1,4 +1,5 @@
 import hashlib
+from functools import lru_cache
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request
@@ -21,6 +22,24 @@ def get_db(request: Request):
     return get_database()
 
 
+# Load public key once at module load using direct Settings instantiation
+def _load_public_key() -> str:
+    from app.core.settings import Settings
+    settings = Settings()
+    with open(settings.jwt_public_key_path, "r") as f:
+        return f.read()
+
+
+_PUBLIC_KEY = _load_public_key()
+
+
+def _get_user_cache() -> dict:
+    """Simple in-memory cache for user existence. TTL handled by token expiry."""
+    if not hasattr(_get_user_cache, "_cache"):
+        _get_user_cache._cache = {}
+    return _get_user_cache._cache
+
+
 async def get_current_user(request: Request) -> UUID:
     """Extract and validate JWT access token, return user_id."""
     auth = request.headers.get("Authorization")
@@ -30,12 +49,8 @@ async def get_current_user(request: Request) -> UUID:
     token = auth[7:]
     settings = get_settings(request)
     
-    # Load public key
-    with open(settings.jwt_public_key_path, "r") as f:
-        public_key = f.read()
-    
     try:
-        payload = jwt.decode(token, public_key, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(token, _PUBLIC_KEY, algorithms=[settings.jwt_algorithm])
     except jwt.ExpiredSignatureError:
         raise AppError("token_expired", "Access token has expired", 401)
     except jwt.JWTError:
@@ -46,16 +61,24 @@ async def get_current_user(request: Request) -> UUID:
     
     user_id = UUID(payload["sub"])
     
-    # Verify user exists and is active
-    db = get_database()
-    async with db.session() as session:
-        from app.models.user import User
-        from sqlalchemy import select
-        result = await session.execute(select(User).where(User.id == user_id))
-        user = result.scalar_one_or_none()
-        
-        if user is None or not user.is_active:
+    # Verify user exists and is active (cached)
+    cache = _get_user_cache()
+    if user_id in cache:
+        if not cache[user_id]:
             raise AppError("invalid_token", "Invalid access token", 401)
+    else:
+        db = get_database()
+        async with db.session() as session:
+            from app.models.user import User
+            from sqlalchemy import select
+            result = await session.execute(select(User).where(User.id == user_id))
+            user = result.scalar_one_or_none()
+            
+            is_valid = user is not None and user.is_active
+            cache[user_id] = is_valid
+            
+            if not is_valid:
+                raise AppError("invalid_token", "Invalid access token", 401)
     
     return user_id
 
