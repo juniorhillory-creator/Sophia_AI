@@ -11,6 +11,7 @@ from app.api.health import router as health_router
 from app.core.handlers import register_error_handlers
 from app.core.log_config import configure_logging
 from app.core.settings import Settings, get_settings
+from app.core.supabase import get_supabase_client, is_supabase_configured
 from app.db.session import get_database
 from app.infrastructure.chroma_store import ChromaStore
 from app.infrastructure.embeddings import Embedder, SentenceTransformerEmbedder
@@ -23,19 +24,29 @@ logger = logging.getLogger("sophia.access")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db = get_database()
-    try:
-        db.connect()
-        await db.create_tables()
-        logger.info("database_connected")
-    except Exception as e:
-        logger.warning("database_connection_deferred", extra={"error": str(e)})
+    settings = app.state.settings
+    if is_supabase_configured(settings):
+        try:
+            get_supabase_client(settings)
+            logger.info("supabase_connected")
+        except Exception as e:
+            logger.warning("supabase_connection_deferred", extra={"error": str(e)})
+    else:
+        db = get_database()
+        try:
+            db.connect()
+            await db.create_tables()
+            logger.info("database_connected")
+        except Exception as e:
+            logger.warning("database_connection_deferred", extra={"error": str(e)})
     yield
-    try:
-        await db.disconnect()
-        logger.info("database_disconnected")
-    except Exception as e:
-        logger.warning("database_disconnect_error", extra={"error": str(e)})
+    if not is_supabase_configured(settings):
+        db = get_database()
+        try:
+            await db.disconnect()
+            logger.info("database_disconnected")
+        except Exception as e:
+            logger.warning("database_disconnect_error", extra={"error": str(e)})
 
 
 def create_app(

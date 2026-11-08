@@ -14,6 +14,12 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # Supabase
+    supabase_url: str = ""
+    supabase_publishable_key: str = ""
+    supabase_secret_key: str = ""
+    supabase_jwt_secret: str = ""
+
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/sophia_ai"
     database_echo: bool = False
