@@ -6,6 +6,8 @@ import type {
   SourceCitation,
 } from "./types";
 
+export const INSUFFICIENT = "The paper does not contain sufficient information.";
+
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 export class ApiError extends Error {
@@ -157,6 +159,16 @@ export async function createSummary(documentId: string, signal?: AbortSignal): P
   return payload;
 }
 
+export async function getSummary(documentId: string, signal?: AbortSignal): Promise<PaperSummary> {
+  const response = await fetch(`/api/v1/documents/${documentId}/summary`, { signal });
+  const payload = await readJson(response);
+  if (!response.ok) throw toApiError(response.status, payload);
+  if (!isPaperSummary(payload)) {
+    throw new ApiError(response.status, "malformed_response", "The server returned an unreadable summary.");
+  }
+  return payload;
+}
+
 // shortcut: the API takes one question, so earlier bubbles stay on screen only
 export async function askQuestion(documentId: string, question: string): Promise<ChatResponse> {
   const response = await fetch(`/api/v1/documents/${documentId}/questions`, {
@@ -170,6 +182,61 @@ export async function askQuestion(documentId: string, question: string): Promise
     throw new ApiError(response.status, "malformed_response", "The server returned an unreadable answer.");
   }
   return payload;
+}
+
+export type SSEChunk = { type: "content"; text: string } | { type: "citations"; citations: SourceCitation[] } | { type: "done" } | { type: "error"; message: string };
+
+export async function* askQuestionStream(
+  documentId: string,
+  question: string,
+  signal?: AbortSignal,
+): AsyncGenerator<SSEChunk, void, unknown> {
+  const response = await fetch(`/api/v1/documents/${documentId}/questions/stream?question=${encodeURIComponent(question)}`, {
+    method: "GET",
+    headers: { Accept: "text/event-stream" },
+    signal,
+  });
+  if (!response.ok) {
+    const payload = await readJson(new Response(await response.text()));
+    throw toApiError(response.status, payload);
+  }
+  if (!response.body) throw new ApiError(response.status, "stream_error", "No response body");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (!data) continue;
+        if (data === INSUFFICIENT) {
+          yield { type: "content", text: INSUFFICIENT };
+          return;
+        }
+        if (data.startsWith("[CITATIONS]")) {
+          const json = data.slice("[CITATIONS]".length);
+          try {
+            const citations = JSON.parse(json);
+            yield { type: "citations", citations };
+          } catch {
+            // ignore malformed citations
+          }
+          return;
+        }
+        yield { type: "content", text: data };
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 export async function fetchDocument(documentId: string): Promise<Document> {

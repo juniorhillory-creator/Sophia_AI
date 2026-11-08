@@ -1,6 +1,7 @@
+import asyncio
 import json
 import logging
-from typing import Any
+from typing import Any, AsyncIterator
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -56,6 +57,59 @@ class OllamaClient:
                 502,
             )
         return _content(payload)
+
+    async def stream(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        timeout: float,
+    ) -> AsyncIterator[str]:
+        """Stream model response chunks as they arrive."""
+        body: dict[str, Any] = {"model": self._model, "messages": messages, "stream": True}
+        request = Request(
+            self._url,
+            data=json.dumps(body).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        loop = asyncio.get_event_loop()
+        try:
+            # Run blocking urlopen in thread pool
+            response = await loop.run_in_executor(None, lambda: urlopen(request, timeout=timeout))
+        except TimeoutError as exc:
+            raise _timeout() from exc
+        except URLError as exc:
+            logger.warning("ollama_unreachable", extra={"error_type": type(exc.reason).__name__})
+            if isinstance(exc.reason, TimeoutError):
+                raise _timeout() from exc
+            raise AppError("model_unavailable", "Could not reach the local model.", 503) from exc
+        except Exception as exc:
+            logger.warning("ollama_error", extra={"error": str(exc)})
+            raise AppError("model_unavailable", "Could not reach the local model.", 503) from exc
+
+        try:
+            async for line in self._iter_lines(response):
+                if not line:
+                    continue
+                try:
+                    parsed = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                message = parsed.get("message") if isinstance(parsed, dict) else None
+                content = message.get("content") if isinstance(message, dict) else None
+                if content:
+                    yield content
+        finally:
+            response.close()
+
+    async def _iter_lines(self, response) -> AsyncIterator[str]:
+        """Iterate over response lines asynchronously."""
+        loop = asyncio.get_event_loop()
+        while True:
+            line = await loop.run_in_executor(None, response.readline)
+            if not line:
+                break
+            yield line.decode("utf-8").strip()
 
 
 def _timeout() -> AppError:
