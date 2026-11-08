@@ -297,6 +297,17 @@ export async function fetchDocuments(limit = 50, offset = 0): Promise<Document[]
   return payload as Document[];
 }
 
+export async function fetchDocumentFile(documentId: string): Promise<Blob> {
+  const response = await fetch(`/api/v1/documents/${documentId}/file`, {
+    headers: authHeaders(),
+  });
+  if (!response.ok) {
+    const payload = await readJson(response);
+    throw toApiError(response.status, payload);
+  }
+  return await response.blob();
+}
+
 export async function deleteDocument(documentId: string): Promise<void> {
   const response = await fetch(`/api/v1/documents/${documentId}`, {
     method: "DELETE",

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { MAX_UPLOAD_BYTES, rejectUpload, toApiError } from "./client";
+import {
+  MAX_UPLOAD_BYTES,
+  rejectUpload,
+  toApiError,
+  setAuthToken,
+  getAuthToken,
+} from "./client";
 
 function file(name: string, type: string, size: number): File {
   return { name, type, size } as File;
@@ -27,5 +33,14 @@ describe("toApiError", () => {
 
   it("does not treat a partial body as a server message", () => {
     expect(toApiError(500, { detail: "boom" }).code).toBe("http_error");
+  });
+});
+
+describe("auth tokens", () => {
+  it("sets and retrieves the in-memory authorization token", () => {
+    setAuthToken("test-jwt-token-12345");
+    expect(getAuthToken()).toBe("test-jwt-token-12345");
+    setAuthToken(null);
+    expect(getAuthToken()).toBeNull();
   });
 });
