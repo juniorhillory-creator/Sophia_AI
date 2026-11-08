@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     chunk_size: int = 1200
     chunk_overlap: int = 150
     cors_origins: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["http://localhost:5173"]
+        default_factory=lambda: ["http://localhost:5173", "http://localhost:5174"]
     )
     log_level: str = "INFO"
     ollama_base_url: str = "http://127.0.0.1:11434"
