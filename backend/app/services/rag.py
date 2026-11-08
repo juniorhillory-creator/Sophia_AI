@@ -1,4 +1,5 @@
 import logging
+from typing import AsyncIterator
 
 from uuid import UUID
 
@@ -57,6 +58,7 @@ class RagService:
         return hits
 
     def answer(self, document_id: UUID, question: str, llm: Llm, timeout: float) -> ChatResponse:
+        """Return complete answer with citations (non-streaming)."""
         hits = self.retrieve(document_id, question)
         if not hits:
             return ChatResponse(answer=INSUFFICIENT, sources=[], document_id=document_id)
@@ -75,7 +77,54 @@ class RagService:
                 "The model returned an unreadable response.",
                 502,
             )
-        sources = [] if answer == INSUFFICIENT else _citations(hits)
+        if answer == INSUFFICIENT:
+            return ChatResponse(answer=INSUFFICIENT, sources=[], document_id=document_id)
+        sources = _citations(hits)
+        return ChatResponse(answer=answer, sources=sources, document_id=document_id)
+
+    async def answer_stream(
+        self, document_id: UUID, question: str, llm: Llm, timeout: float
+    ) -> AsyncIterator[str]:
+        """Stream answer chunks as they arrive from the LLM."""
+        hits = self.retrieve(document_id, question)
+        if not hits:
+            yield INSUFFICIENT
+            return
+        
+        passages = _passages(hits, question)
+        messages = [
+            {"role": "system", "content": _SYSTEM},
+            {"role": "user", "content": passages},
+        ]
+        
+        async for chunk in llm.stream(messages, timeout=timeout):
+            yield chunk
+
+    def answer_with_citations(
+        self, document_id: UUID, question: str, llm: Llm, timeout: float
+    ) -> ChatResponse:
+        """Return answer with citations (non-streaming)."""
+        hits = self.retrieve(document_id, question)
+        if not hits:
+            return ChatResponse(answer=INSUFFICIENT, sources=[], document_id=document_id)
+        raw = llm.complete(
+            [
+                {"role": "system", "content": _SYSTEM},
+                {"role": "user", "content": _passages(hits, question)},
+            ],
+            json_schema=None,
+            timeout=timeout,
+        )
+        answer = raw.strip()
+        if not answer:
+            raise AppError(
+                "malformed_model_response",
+                "The model returned an unreadable response.",
+                502,
+            )
+        if answer == INSUFFICIENT:
+            return ChatResponse(answer=INSUFFICIENT, sources=[], document_id=document_id)
+        sources = _citations(hits)
         return ChatResponse(answer=answer, sources=sources, document_id=document_id)
 
 
@@ -86,8 +135,9 @@ def _passages(hits: list[Hit], question: str) -> str:
     return f"Passages:\n{numbered}\n\nQuestion: {question}"
 
 
-def _citations(hits: list[Hit]) -> list[SourceCitation]:
-    citations: list[SourceCitation] = []
+def _citations(hits: list[Hit]) -> list:
+    from app.schemas.models import SourceCitation
+    citations: list = []
     for hit in hits:
         snippet = _excerpt(hit.text)
         if not snippet:
@@ -96,9 +146,9 @@ def _citations(hits: list[Hit]) -> list[SourceCitation]:
     return citations
 
 
-def _excerpt(text: str, limit: int = _EXCERPT_CHARS) -> str:
+def _excerpt(text: str, limit: int = 240) -> str:
     flat = " ".join(text.split())
-    if len(flat) <= limit:
+    if len(flat) <= 240:
         return flat
-    cut = flat[:limit].rsplit(" ", 1)[0].strip()
-    return cut or flat[:limit]
+    cut = flat[:240].rsplit(" ", 1)[0].strip()
+    return cut or flat[:240]

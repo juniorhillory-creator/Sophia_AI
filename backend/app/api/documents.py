@@ -307,12 +307,63 @@ async def ask_question(
 ) -> ChatResponse:
     """Answer from retrieved chunks. Pages come from those chunks, not from the model."""
     session, _ = await _get_owned_document(document_id, user_id, sessions, request)
-    return await asyncio.to_thread(
-        rag.answer,
-        document_id,
-        body.question,
-        llm,
-        settings.ollama_timeout_seconds,
+    return rag.answer_with_citations(
+        document_id, body.question, llm, settings.ollama_timeout_seconds
+    )
+
+
+@router.get(
+    "/{document_id}/questions/stream",
+    responses={404: {"model": ErrorBody}, 502: {"model": ErrorBody}},
+)
+async def ask_question_stream(
+    request: Request,
+    document_id: UUID,
+    question: str,
+    user_id: UUID = Depends(get_current_user),
+    sessions: SessionStore = Depends(get_sessions),
+    rag: RagService = Depends(get_rag),
+    llm: Llm = Depends(get_llm),
+    settings: Settings = Depends(get_settings),
+):
+    """Stream answer chunks via Server-Sent Events."""
+    from fastapi.responses import StreamingResponse
+    
+    session, _ = await _get_owned_document(document_id, user_id, sessions, request)
+    
+    async def event_generator():
+        from app.services.rag import INSUFFICIENT
+        
+        hits = rag.retrieve(document_id, question)
+        if not hits:
+            yield f"data: {INSUFFICIENT}\n\n"
+            return
+        
+        async for chunk in rag.answer_stream(document_id, question, llm, settings.ollama_timeout_seconds):
+            yield f"data: {chunk}\n\n"
+        
+        # Send citations at the end
+        citations = []
+        hits = rag.retrieve(document_id, question)
+        for hit in hits:
+            snippet = hit.text[:240].strip()
+            if snippet:
+                citations.append({
+                    "page": hit.page,
+                    "excerpt": snippet[:240],
+                    "chunk_id": hit.chunk_id
+                })
+        if citations:
+            yield f"data: [CITATIONS]{json.dumps(citations)}\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 
