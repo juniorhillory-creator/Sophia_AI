@@ -11,10 +11,7 @@ from app.api.health import router as health_router
 from app.core.handlers import register_error_handlers
 from app.core.log_config import configure_logging
 from app.core.settings import Settings, get_settings
-<<<<<<< HEAD
 from app.core.supabase import get_supabase_client, is_supabase_configured
-=======
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
 from app.db.session import get_database
 from app.infrastructure.chroma_store import ChromaStore
 from app.infrastructure.embeddings import Embedder, SentenceTransformerEmbedder
@@ -27,7 +24,6 @@ logger = logging.getLogger("sophia.access")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-<<<<<<< HEAD
     settings = app.state.settings
     if is_supabase_configured(settings):
         try:
@@ -51,21 +47,6 @@ async def lifespan(app: FastAPI):
             logger.info("database_disconnected")
         except Exception as e:
             logger.warning("database_disconnect_error", extra={"error": str(e)})
-=======
-    db = get_database()
-    try:
-        db.connect()
-        await db.create_tables()
-        logger.info("database_connected")
-    except Exception as e:
-        logger.warning("database_connection_deferred", extra={"error": str(e)})
-    yield
-    try:
-        await db.disconnect()
-        logger.info("database_disconnected")
-    except Exception as e:
-        logger.warning("database_disconnect_error", extra={"error": str(e)})
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
 
 
 def create_app(
@@ -78,13 +59,9 @@ def create_app(
     app = FastAPI(title="Sophia AI", version="0.1.0", lifespan=lifespan)
     app.state.settings = resolved
     app.state.sessions = SessionStore()
-<<<<<<< HEAD
     app.state.llm = OllamaClient(
-        resolved.ollama_base_url, resolved.ollama_model, resolved.ollama_num_gpu
+        resolved.ollama_base_url, resolved.ollama_model
     )
-=======
-    app.state.llm = OllamaClient(resolved.ollama_base_url, resolved.ollama_model)
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     app.state.rag = RagService(
         embedder or SentenceTransformerEmbedder(resolved.embedding_model),
         vectors or ChromaStore.open(resolved.chroma_path),

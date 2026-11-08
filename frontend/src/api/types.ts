@@ -72,10 +72,6 @@ export interface User {
   is_verified: boolean;
   created_at: string;
   updated_at: string;
-<<<<<<< HEAD
-  last_login_at?: string | null;
-=======
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
 }
 
 export interface LoginRequest {

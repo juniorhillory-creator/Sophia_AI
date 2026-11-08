@@ -27,11 +27,7 @@ class RegisterRequest(BaseModel):
     @field_validator("confirm_password")
     @classmethod
     def passwords_match(cls, value: str, info) -> str:
-<<<<<<< HEAD
-        if "password" in info.data and info.data["password"] != value:
-=======
         if info.data.get("password") != value:
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
             raise ValueError("Passwords do not match")
         return value
 

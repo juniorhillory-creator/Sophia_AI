@@ -10,10 +10,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-<<<<<<< HEAD
-    "@supabase/supabase-js": "^2.119.0",
-=======
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
     "pdfjs-dist": "^4.10.38",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

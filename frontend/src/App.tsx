@@ -778,8 +778,4 @@ export default function App() {
       </BrowserRouter>
     </AuthProvider>
   );
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 0fca1bbaffa87e45686a97d043d28b7a2e96ae81
