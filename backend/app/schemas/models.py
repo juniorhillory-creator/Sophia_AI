@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import Enum as PyEnum
 from typing import Literal
 from uuid import UUID
 
@@ -14,12 +15,30 @@ class HealthResponse(BaseModel):
     status: Literal["ok"]
 
 
+class DocumentStatus(str, PyEnum):
+    processing = "processing"
+    ready = "ready"
+    failed = "failed"
+
+
+class ProcessingStage(str, PyEnum):
+    extracting = "extracting"
+    indexing = "indexing"
+    summarizing = "summarizing"
+
+
 class Document(BaseModel):
     id: UUID
+    user_id: UUID
     filename: str = Field(min_length=1, max_length=255)
     page_count: int = Field(ge=1)
     chunk_count: int = Field(ge=1)
+    status: DocumentStatus
+    stage: ProcessingStage | None = None
+    error_code: str | None = None
+    error_message: str | None = None
     created_at: datetime
+    updated_at: datetime
 
 
 class Chunk(BaseModel):

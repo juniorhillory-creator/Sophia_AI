@@ -10,7 +10,7 @@ from app.domain.errors import AppError
 from app.infrastructure.chunking import chunk_pages
 from app.infrastructure.pdf import extract_pages
 from app.models.document import Document as DocumentModel
-from app.schemas.models import Chunk, Document
+from app.schemas.models import Chunk, Document, DocumentStatus
 from app.services.sessions import DocumentSession, SessionStore
 
 logger = logging.getLogger("sophia.ingestion")
@@ -61,6 +61,8 @@ class IngestionService:
                 400,
             )
         
+        now = datetime.now(timezone.utc)
+        
         # Create document in PostgreSQL if user_id is provided and database is connected
         if self._user_id is not None:
             db = get_database()
@@ -83,10 +85,13 @@ class IngestionService:
         
         document = Document(
             id=document_id,
+            user_id=self._user_id or UUID(int=0),  # Default for tests without auth
             filename=safe_name,
             page_count=len(pages),
             chunk_count=len(chunks),
+            status=DocumentStatus.processing,
             created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         # shortcut: index during upload; move off the request if large papers time out
         if self._index_chunks is not None:
