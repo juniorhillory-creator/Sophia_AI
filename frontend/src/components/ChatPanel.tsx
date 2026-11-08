@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { askQuestion, errorMessage } from "../api/client";
-import { INSUFFICIENT, type SourceCitation } from "../api/types";
+import { askQuestion, askQuestionStream, errorMessage, INSUFFICIENT, type SSEChunk } from "../api/client";
+import { type SourceCitation } from "../api/types";
 
 const SUGGESTED_QUESTIONS = [
   "What problem does this paper address?",
@@ -19,6 +19,7 @@ interface AssistantMessage {
   role: "assistant";
   content: string;
   sources: SourceCitation[];
+  streaming?: boolean;
 }
 
 type ChatMessage = UserMessage | AssistantMessage;
@@ -36,6 +37,7 @@ export function ChatPanel({ documentId, onOpenPage }: ChatPanelProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const sequence = useRef(0);
   const inputId = useId();
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     setMessages([]);
@@ -46,7 +48,7 @@ export function ChatPanel({ documentId, onOpenPage }: ChatPanelProps) {
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
-  }, [messages, pending, error]);
+  }, [messages, pending]);
 
   function nextId(): string {
     sequence.current += 1;
@@ -56,26 +58,69 @@ export function ChatPanel({ documentId, onOpenPage }: ChatPanelProps) {
   async function send(question: string) {
     const trimmed = question.trim();
     if (!trimmed || pending) return;
-    setMessages((current) => [...current, { id: nextId(), role: "user", content: trimmed }]);
+    
+    const userMsgId = nextId();
+    setMessages((current) => [...current, { id: userMsgId, role: "user", content: trimmed }]);
     setDraft("");
     setPending(true);
     setError(null);
+    
+    // Cancel any previous stream
+    abortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    const assistantMsgId = nextId();
+    setMessages((current) => [...current, { 
+      id: assistantMsgId, 
+      role: "assistant", 
+      content: "", 
+      sources: [],
+      streaming: true 
+    }]);
+
     try {
-      const response = await askQuestion(documentId, trimmed);
-      setMessages((current) => [
-        ...current,
-        {
-          id: nextId(),
-          role: "assistant",
-          content: response.answer,
-          sources: response.sources,
-        },
-      ]);
+      let fullContent = "";
+      let citations: SourceCitation[] = [];
+      
+      for await (const chunk of askQuestionStream(documentId, trimmed, abortController.signal)) {
+        if (chunk.type === "content") {
+          fullContent += chunk.text;
+          setMessages((current) => current.map((msg) => 
+            msg.id === assistantMsgId ? { ...msg, content: fullContent } : msg
+          ));
+        } else if (chunk.type === "citations") {
+          // Update the last message with citations
+          setMessages((current) => current.map((msg) => 
+            msg.id === assistantMsgId ? { ...msg, sources: chunk.citations, streaming: false } : msg
+          ));
+        }
+      }
     } catch (reason) {
+      if (reason instanceof Error && reason.name === "AbortError") {
+        // Ignore aborted requests
+        return;
+      }
       setError(errorMessage(reason));
+      setMessages((current) => current.map((msg) => 
+        msg.id === assistantMsgId ? { ...msg, content: errorMessage(reason), streaming: false } : msg
+      ));
     } finally {
       setPending(false);
     }
+  }
+
+  function abortStream() {
+    abortControllerRef.current?.abort();
+    setPending(false);
+    // Remove the streaming message if it was the last one
+    setMessages((current) => {
+      const last = current[current.length - 1];
+      if (last?.role === "assistant" && last.streaming) {
+        return current.slice(0, -1);
+      }
+      return current;
+    });
   }
 
   return (
@@ -110,6 +155,12 @@ export function ChatPanel({ documentId, onOpenPage }: ChatPanelProps) {
                   >
                     {message.content}
                   </p>
+                  {message.streaming && (
+                    <div className="mt-1 flex items-center gap-1 text-xs text-stone-500">
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
+                      <span className="text-stone-500">Streaming…</span>
+                    </div>
+                  )}
                   {message.sources.length > 0 ? (
                     <details className="mt-3">
                       <summary className="cursor-pointer text-sm text-stone-600">
@@ -147,13 +198,7 @@ export function ChatPanel({ documentId, onOpenPage }: ChatPanelProps) {
           </p>
         ) : null}
       </div>
-      <form
-        className="mt-4 flex gap-2 border-t border-stone-200 pt-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void send(draft);
-        }}
-      >
+      <div className="mt-4 flex gap-2 border-t border-stone-200 pt-4">
         <label className="sr-only" htmlFor={inputId}>
           Question
         </label>
@@ -166,14 +211,25 @@ export function ChatPanel({ documentId, onOpenPage }: ChatPanelProps) {
           className="min-w-0 flex-1 border border-stone-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand focus:ring-offset-2"
           disabled={pending}
         />
-        <button
-          type="submit"
-          className="bg-brand px-4 py-2.5 text-sm font-medium text-white disabled:bg-stone-300 focus:ring-2 focus:ring-brand focus:ring-offset-2"
-          disabled={pending || draft.trim().length === 0}
-        >
-          Ask
-        </button>
-      </form>
+        {pending ? (
+          <button
+            type="button"
+            className="bg-stone-200 px-4 py-2.5 text-sm font-medium text-stone-500 focus:ring-2 focus:ring-brand focus:ring-offset-2"
+            onClick={abortStream}
+            aria-label="Stop streaming"
+          >
+            Stop
+          </button>
+        ) : (
+          <button
+            type="submit"
+            className="bg-brand px-4 py-2.5 text-sm font-medium text-white disabled:bg-stone-300 focus:ring-2 focus:ring-brand focus:ring-offset-2"
+            disabled={draft.trim().length === 0}
+          >
+            Ask
+          </button>
+        )}
+      </div>
     </div>
   );
 }
