@@ -44,7 +44,7 @@ class IngestionService:
         self._index_chunks = index_chunks
         self._user_id = user_id
 
-    def ingest(self, filename: str | None, content_type: str | None, data: bytes) -> Document:
+    async def ingest(self, filename: str | None, content_type: str | None, data: bytes) -> Document:
         safe_name = validate_declared_file(filename, content_type)
         pages = extract_pages(data)
         document_id = uuid4()
@@ -65,8 +65,7 @@ class IngestionService:
         if self._user_id is not None:
             db = get_database()
             if db.is_connected:
-                import asyncio
-                async def create_doc():
+                try:
                     async with db.session() as session:
                         doc_model = DocumentModel(
                             id=document_id,
@@ -76,7 +75,9 @@ class IngestionService:
                             chunk_count=len(chunks),
                         )
                         session.add(doc_model)
-                asyncio.run(create_doc())
+                except Exception as e:
+                    logger.error("document_creation_failed", extra={"error": str(e)})
+                    raise AppError("storage_error", "Failed to persist document metadata", 500)
             else:
                 logger.warning("database_not_connected_skipping_document_creation")
         
