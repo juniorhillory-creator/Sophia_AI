@@ -86,7 +86,7 @@ export function Sidebar({ collapsed, setCollapsed, activePath }: SidebarProps) {
           </svg>
         </button>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-brand" aria-hidden="true" />
+          <img src="/logo-icon.png" alt="Sophia AI" className="h-6 w-6 object-contain" />
           <span className="text-sm font-bold text-stone-900 tracking-tight">Sophia</span>
         </div>
       </div>

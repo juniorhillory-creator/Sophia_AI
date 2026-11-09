@@ -86,9 +86,7 @@ export function NavRail({ collapsed, onToggleCollapse }: NavRailProps) {
           onClick={() => navigate("/dashboard")}
           title="Sophia AI - Home"
         >
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand text-white shadow-sm font-bold text-base">
-            S
-          </div>
+          <img src="/logo-icon.png" alt="Sophia AI" className="h-8 w-8 shrink-0 object-contain" />
           {!collapsed && (
             <div className="flex items-center gap-1.5 animate-fade-in whitespace-nowrap">
               <span className="text-base font-bold tracking-tight text-stone-900">Sophia</span>

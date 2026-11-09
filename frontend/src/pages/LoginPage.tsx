@@ -34,16 +34,8 @@ export function LoginPage() {
     <AuthLayout>
       <div className="bg-white rounded-2xl border border-stone-200 shadow-card p-6 sm:p-8 animate-fade-in">
         <div className="mb-8 text-center">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-light text-brand mb-4" aria-hidden="true">
-            <svg className="h-7 w-7" viewBox="0 0 32 32" fill="none">
-              <defs>
-                <linearGradient id="brandGradientLogin" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#f26934" />
-                  <stop offset="100%" stopColor="#c44e22" />
-                </linearGradient>
-              </defs>
-              <circle cx="16" cy="16" r="15" stroke="url(#brandGradientLogin)" strokeWidth="2" />
-            </svg>
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-light p-2.5 mb-4 shadow-sm" aria-hidden="true">
+            <img src="/logo-icon.png" alt="Sophia AI Logo" className="h-full w-full object-contain" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-stone-900">Welcome back</h1>
           <p className="mt-2 text-sm text-stone-600">Sign in to access your research papers</p>

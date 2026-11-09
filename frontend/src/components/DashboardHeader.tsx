@@ -24,27 +24,10 @@ export function DashboardHeader({ onCollapseToggle }: DashboardHeaderProps) {
             <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
-        <a href="/" className="flex items-center gap-2" aria-label="Sophia AI - Home">
-          <svg className="h-8 w-8" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-            <defs>
-              <linearGradient id="brandGradientHeaderDash" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#f26934" />
-                <stop offset="100%" stopColor="#c44e22" />
-              </linearGradient>
-              <linearGradient id="accentGradientHeaderDash" x1="0" y1="16" x2="32" y2="16" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#f26934" />
-                <stop offset="50%" stopColor="#ff8c42" />
-                <stop offset="100%" stopColor="#f26934" />
-              </linearGradient>
-            </defs>
-            <circle cx="16" cy="16" r="15" stroke="url(#brandGradientHeaderDash)" strokeWidth="2" />
-            <path d="M8 22C8 15.37 13.37 10 20 10C26.63 10 32 15.37 32 22" stroke="url(#accentGradientHeaderDash)" strokeWidth="3" strokeLinecap="round" fill="none" />
-            <circle cx="8" cy="22" r="3" fill="url(#brandGradientHeaderDash)" />
-            <circle cx="20" cy="10" r="2.5" fill="url(#accentGradientHeaderDash)" />
-            <circle cx="32" cy="22" r="2" fill="url(#brandGradientHeaderDash)" />
-          </svg>
+        <a href="/" className="flex items-center gap-2.5" aria-label="Sophia AI - Home">
+          <img src="/logo-icon.png" alt="Sophia AI Logo" className="h-8 w-8 object-contain" />
           <span className="text-xl font-bold tracking-tight text-stone-900">Sophia</span>
-          <span className="text-xs font-medium text-brand hidden sm:inline-block px-1.5 py-0.5 rounded-full bg-brand-light">AI</span>
+          <span className="text-xs font-semibold text-brand hidden sm:inline-block px-1.5 py-0.5 rounded-full bg-brand-light">AI</span>
         </a>
       </div>
 
