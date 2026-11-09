@@ -94,6 +94,14 @@ class Settings(BaseSettings):
             raise ValueError("chroma_path must not be blank")
         return stripped
 
+    @field_validator("gemini_model")
+    @classmethod
+    def require_gemini_model(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("gemini_model must not be blank")
+        return stripped
+
     @field_validator("ollama_model")
     @classmethod
     def require_model_name(cls, value: str) -> str:

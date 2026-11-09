@@ -1,8 +1,9 @@
-import asyncio
 import json
 import logging
+from typing import cast
 
 import pytest
+from fastapi import UploadFile
 from pydantic import ValidationError
 
 from app.core.log_config import JsonFormatter
@@ -40,6 +41,18 @@ def test_ollama_defaults_are_local() -> None:
         Settings(ollama_timeout_seconds=0)
 
 
+def test_gemini_defaults_and_validation() -> None:
+    assert Settings.model_fields["gemini_model"].default == "gemini-3.8-flash"
+    assert Settings.model_fields["gemini_api_key"].default == ""
+    assert Settings.model_fields["llm_timeout_seconds"].default == 120
+    with pytest.raises(ValidationError):
+        Settings(gemini_model="   ")
+    with pytest.raises(ValidationError):
+        Settings(llm_timeout_seconds=0)
+    with pytest.raises(ValidationError):
+        Settings(llm_timeout_seconds=-5)
+
+
 def test_cors_origins_accept_a_comma_separated_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CORS_ORIGINS", "http://a.test, http://b.test")
     settings = Settings()
@@ -48,6 +61,10 @@ def test_cors_origins_accept_a_comma_separated_env(monkeypatch: pytest.MonkeyPat
 
 def test_pdf_extension_and_mime_type() -> None:
     assert validate_declared_file(r"..\papers\notes.PDF", "application/pdf; charset=binary") == "notes.PDF"
+
+    with pytest.raises(AppError) as empty:
+        validate_declared_file("", "application/pdf")
+    assert empty.value.code == "invalid_pdf"
 
     with pytest.raises(AppError) as extension:
         validate_declared_file("notes.txt", "application/pdf")
@@ -59,7 +76,8 @@ def test_pdf_extension_and_mime_type() -> None:
     assert "application/pdf" in media.value.message
 
 
-def test_read_capped_stops_at_the_limit() -> None:
+@pytest.mark.asyncio
+async def test_read_capped_stops_at_the_limit() -> None:
     class FakeUpload:
         def __init__(self) -> None:
             self.reads = 0
@@ -72,7 +90,7 @@ def test_read_capped_stops_at_the_limit() -> None:
 
     upload = FakeUpload()
     with pytest.raises(AppError) as caught:
-        asyncio.run(read_capped(upload, 25))
+        await read_capped(cast(UploadFile, upload), 25)
     assert caught.value.status_code == 413
     assert caught.value.code == "payload_too_large"
     assert upload.reads == 3
@@ -86,10 +104,11 @@ def test_read_capped_stops_at_the_limit() -> None:
             self._data = b""
             return data
 
-    assert asyncio.run(read_capped(ExactUpload(b"%PDF-1.7"), 8)) == b"%PDF-1.7"
+    assert await read_capped(cast(UploadFile, ExactUpload(b"%PDF-1.7")), 8) == b"%PDF-1.7"
 
 
-def test_request_stream_stops_past_the_limit() -> None:
+@pytest.mark.asyncio
+async def test_request_stream_stops_past_the_limit() -> None:
     async def chunks():
         yield b"x" * 10
         yield b"x" * 10
@@ -97,7 +116,7 @@ def test_request_stream_stops_past_the_limit() -> None:
         raise AssertionError("read continued after the limit")
 
     with pytest.raises(AppError) as caught:
-        asyncio.run(_collect(chunks(), 25))
+        await _collect(chunks(), 25)
     assert caught.value.status_code == 413
 
 
@@ -111,7 +130,7 @@ def test_log_formatter_emits_json_fields() -> None:
         args=(),
         exc_info=None,
     )
-    record.document_id = "abc"
+    setattr(record, "document_id", "abc")
     payload = json.loads(JsonFormatter().format(record))
     assert payload["message"] == "document_stored"
     assert payload["level"] == "INFO"
