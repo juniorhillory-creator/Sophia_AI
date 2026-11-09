@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from supabase import Client, create_client
@@ -105,7 +105,7 @@ class SupabaseDocumentService:
             "stage": None,
         }
         res = self._client.table("documents").insert(payload).execute()
-        return res.data[0] if res.data else payload
+        return cast(dict[str, Any], res.data[0]) if res.data else payload
 
     async def list_documents(self, user_id: UUID, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
         res = (
@@ -116,7 +116,7 @@ class SupabaseDocumentService:
             .range(offset, offset + limit - 1)
             .execute()
         )
-        return res.data or []
+        return cast(list[dict[str, Any]], res.data or [])
 
     async def get_document(self, document_id: UUID, user_id: UUID) -> dict[str, Any] | None:
         res = (
@@ -126,7 +126,7 @@ class SupabaseDocumentService:
             .eq("user_id", str(user_id))
             .execute()
         )
-        return res.data[0] if res.data else None
+        return cast(dict[str, Any], res.data[0]) if res.data else None
 
     async def delete_document(self, document_id: UUID, user_id: UUID) -> None:
         self._client.table("documents").delete().eq("id", str(document_id)).eq("user_id", str(user_id)).execute()
@@ -150,7 +150,7 @@ class SupabaseDocumentService:
             "raw_summary": summary_data,
         }
         res = self._client.table("summaries").upsert(payload, on_conflict="document_id").execute()
-        return res.data[0] if res.data else payload
+        return cast(dict[str, Any], res.data[0]) if res.data else payload
 
     async def get_summary(self, document_id: UUID, user_id: UUID) -> dict[str, Any] | None:
         res = (
@@ -160,5 +160,71 @@ class SupabaseDocumentService:
             .eq("user_id", str(user_id))
             .execute()
         )
-        return res.data[0] if res.data else None
+        return cast(dict[str, Any], res.data[0]) if res.data else None
+
+
+class SupabaseManuscriptService:
+    """Handles CRUD operations for manuscripts in Supabase."""
+
+    def __init__(self, client: Client) -> None:
+        self._client = client
+
+    async def list_manuscripts(self, user_id: UUID) -> list[dict[str, Any]]:
+        res = (
+            self._client.table("manuscripts")
+            .select("*")
+            .eq("user_id", str(user_id))
+            .order("updated_at", desc=True)
+            .execute()
+        )
+        return cast(list[dict[str, Any]], res.data or [])
+
+    async def get_manuscript(self, manuscript_id: UUID, user_id: UUID) -> dict[str, Any] | None:
+        res = (
+            self._client.table("manuscripts")
+            .select("*")
+            .eq("id", str(manuscript_id))
+            .eq("user_id", str(user_id))
+            .execute()
+        )
+        return cast(dict[str, Any], res.data[0]) if res.data else None
+
+    async def create_manuscript(self, user_id: UUID, data: dict[str, Any]) -> dict[str, Any]:
+        payload = {
+            "user_id": str(user_id),
+            "title": data.get("title", "Untitled Manuscript"),
+            "content": data.get("content", ""),
+            "status": data.get("status", "draft"),
+            "document_id": str(data["document_id"]) if data.get("document_id") else None,
+        }
+        res = self._client.table("manuscripts").insert(payload).execute()
+        return cast(dict[str, Any], res.data[0]) if res.data else payload
+
+    async def update_manuscript(
+        self, manuscript_id: UUID, user_id: UUID, data: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        payload = {k: v for k, v in data.items() if v is not None}
+        if "document_id" in payload and payload["document_id"] is not None:
+            payload["document_id"] = str(payload["document_id"])
+        if not payload:
+            return await self.get_manuscript(manuscript_id, user_id)
+        res = (
+            self._client.table("manuscripts")
+            .update(payload)
+            .eq("id", str(manuscript_id))
+            .eq("user_id", str(user_id))
+            .execute()
+        )
+        return cast(dict[str, Any], res.data[0]) if res.data else None
+
+    async def delete_manuscript(self, manuscript_id: UUID, user_id: UUID) -> bool:
+        res = (
+            self._client.table("manuscripts")
+            .delete()
+            .eq("id", str(manuscript_id))
+            .eq("user_id", str(user_id))
+            .execute()
+        )
+        return bool(res.data)
+
 
