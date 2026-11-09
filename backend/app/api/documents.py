@@ -349,7 +349,7 @@ async def create_summary(
         summarize,
         session.pages,
         llm,
-        settings.ollama_timeout_seconds,
+        settings.llm_timeout_seconds,
     )
 
     # 4. Save to Supabase
@@ -427,7 +427,7 @@ async def ask_question(
     """Answer from retrieved chunks. Pages come from those chunks, not from the model."""
     session, _ = await _get_owned_document(document_id, user_id, sessions, request)
     return rag.answer_with_citations(
-        document_id, body.question, llm, settings.ollama_timeout_seconds
+        document_id, body.question, llm, settings.llm_timeout_seconds
     )
 
 
@@ -454,7 +454,7 @@ async def ask_question_stream(
             yield f"data: {INSUFFICIENT}\n\n"
             return
 
-        async for chunk in rag.answer_stream(document_id, question, llm, settings.ollama_timeout_seconds):
+        async for chunk in rag.answer_stream(document_id, question, llm, settings.llm_timeout_seconds):
             yield f"data: {chunk}\n\n"
 
         citations = []
