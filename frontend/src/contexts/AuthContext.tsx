@@ -21,6 +21,7 @@ interface AuthContextType {
     password: string;
     confirm_password: string;
   }) => Promise<void>;
+  setSession: (tokens: { access_token: string; refresh_token: string }, user: User) => void;
   logout: () => Promise<void>;
   clearError: () => void;
   refreshSession: () => Promise<void>;
@@ -29,10 +30,55 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({ kind: "unauthenticated" });
+  const [state, setState] = useState<AuthState>(() => {
+    try {
+      const stored = sessionStorage.getItem("sophia_auth");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.accessToken && parsed?.user) {
+          setAuthToken(parsed.accessToken);
+          return {
+            kind: "authenticated",
+            user: parsed.user,
+            accessToken: parsed.accessToken,
+            refreshToken: parsed.refreshToken || "",
+          };
+        }
+      }
+    } catch {
+      // Ignore sessionStorage parsing errors
+    }
+    return { kind: "unauthenticated" };
+  });
   const [error, setError] = useState<string | null>(null);
 
   const clearError = useCallback(() => setError(null), []);
+
+  const setSession = useCallback(
+    (tokens: { access_token: string; refresh_token: string }, user: User) => {
+      setAuthToken(tokens.access_token);
+      try {
+        sessionStorage.setItem(
+          "sophia_auth",
+          JSON.stringify({
+            user,
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token,
+          }),
+        );
+      } catch {
+        // Ignore sessionStorage errors
+      }
+      setState({
+        kind: "authenticated",
+        user,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+      });
+      setError(null);
+    },
+    [],
+  );
 
   const doLogin = useCallback(
     async (credentials: { username_or_email: string; password: string }) => {
@@ -40,21 +86,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       try {
         const response = await login(credentials);
-        setAuthToken(response.tokens.access_token);
-        setState({
-          kind: "authenticated",
-          user: response.user,
-          accessToken: response.tokens.access_token,
-          refreshToken: response.tokens.refresh_token,
-        });
+        setSession(response.tokens, response.user);
       } catch (reason) {
         setAuthToken(null);
+        try {
+          sessionStorage.removeItem("sophia_auth");
+        } catch {}
         setState({ kind: "unauthenticated" });
         setError(errorMessage(reason));
         throw reason;
       }
     },
-    [],
+    [setSession],
   );
 
   const doRegister = useCallback(
@@ -68,21 +111,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       try {
         const response = await register(data);
-        setAuthToken(response.tokens.access_token);
-        setState({
-          kind: "authenticated",
-          user: response.user,
-          accessToken: response.tokens.access_token,
-          refreshToken: response.tokens.refresh_token,
-        });
+        setSession(response.tokens, response.user);
       } catch (reason) {
         setAuthToken(null);
+        try {
+          sessionStorage.removeItem("sophia_auth");
+        } catch {}
         setState({ kind: "unauthenticated" });
         setError(errorMessage(reason));
         throw reason;
       }
     },
-    [],
+    [setSession],
   );
 
   const doLogout = useCallback(async () => {
@@ -95,6 +135,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
     setAuthToken(null);
+    try {
+      sessionStorage.removeItem("sophia_auth");
+    } catch {}
     setState({ kind: "unauthenticated" });
     setError(null);
   }, [state]);
@@ -104,17 +147,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (current.kind !== "authenticated") return;
     try {
       const tokens = await refreshTokens(current.refreshToken);
-      setAuthToken(tokens.access_token);
-      setState((prev) => {
-        if (prev.kind !== "authenticated") return prev;
-        return { ...prev, accessToken: tokens.access_token, refreshToken: tokens.refresh_token };
-      });
+      setSession(tokens, current.user);
     } catch {
       setAuthToken(null);
+      try {
+        sessionStorage.removeItem("sophia_auth");
+      } catch {}
       setState({ kind: "unauthenticated" });
       setError("Session expired. Please sign in again.");
     }
-  }, [state]);
+  }, [state, setSession]);
 
   useEffect(() => {
     // No token persistence: tokens live in memory only per security rules
@@ -128,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     error,
     login: doLogin,
     register: doRegister,
+    setSession,
     logout: doLogout,
     clearError,
     refreshSession: doRefreshSession,

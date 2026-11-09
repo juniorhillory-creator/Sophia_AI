@@ -1,4 +1,4 @@
-import { errorMessage, toApiError } from "./client";
+import { API_BASE, errorMessage, toApiError } from "./client";
 import type {
   AuthResponse,
   AuthTokens,
@@ -12,7 +12,7 @@ import type {
 } from "./types";
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(`/api/v1/auth${path}`, {
+  const response = await fetch(`${API_BASE}/api/v1/auth${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -54,7 +54,7 @@ export async function refreshTokens(refreshToken: string): Promise<AuthTokens> {
 }
 
 export async function logout(accessToken: string): Promise<void> {
-  const response = await fetch(`/api/v1/auth/logout`, {
+  const response = await fetch(`${API_BASE}/api/v1/auth/logout`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

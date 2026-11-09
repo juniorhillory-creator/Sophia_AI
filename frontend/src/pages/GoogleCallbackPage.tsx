@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { googleAuth } from "../api/auth";
+import { useAuth } from "../contexts/AuthContext";
 import { AuthLayout } from "../components/AuthLayout";
 
 export function GoogleCallbackPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { setSession } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,14 +31,15 @@ export function GoogleCallbackPage() {
     (async () => {
       try {
         const redirect_uri = window.location.origin + "/auth/google/callback";
-        await googleAuth({ code, redirect_uri });
-        navigate("/", { replace: true });
+        const response = await googleAuth({ code, redirect_uri });
+        setSession(response.tokens, response.user);
+        navigate("/dashboard", { replace: true });
       } catch {
         setLoading(false);
         setError("Failed to complete Google sign-in. Please try again.");
       }
     })();
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, setSession]);
 
   if (loading) {
     return (
