@@ -6,6 +6,8 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 .env
+.env.local
+.env.*.local
 *.pyc
 data/
 .env.example
@@ -15,9 +17,54 @@ backend/keys/private.pem
 backend/keys/public.pem
 *.pem
 *.key
-frontend/node_modules/
-frontend/dist/
 
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+
+# Build artifacts
+dist/
+build/
+*.tsbuildinfo
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Supabase
 supabase/.temp/
 supabase/.branches/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+frontend/.vercel
+
+# Vercel
+.vercel
+
+# Docker
+.docker/
+
+# Test artifacts
+coverage/
+.nyc_output/
 
