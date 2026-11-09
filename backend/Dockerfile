@@ -38,9 +38,9 @@ WORKDIR $HOME/app
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy app code, keys, and startup script
+# Copy app code and startup script
 COPY --chown=user:user app/ ./app/
-COPY --chown=user:user keys/ ./keys/
+RUN mkdir -p ./keys
 COPY --chown=user:user start.sh ./start.sh
 
 # Create runtime directories with user ownership
