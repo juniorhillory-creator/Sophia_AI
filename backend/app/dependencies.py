@@ -65,8 +65,9 @@ async def get_current_user(request: Request) -> UUID:
                 user_res = sb.auth.get_user(token)
                 if user_res and user_res.user:
                     return UUID(user_res.user.id)
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger("sophia.auth").warning("supabase_get_user_failed: %s", e)
 
     public_key = _load_public_key(settings)
     

@@ -46,6 +46,32 @@ export interface ChatResponse {
   document_id: string;
 }
 
+export interface Manuscript {
+  id: string;
+  user_id: string;
+  document_id?: string | null;
+  title: string;
+  content: string;
+  status: "draft" | "in_review" | "published";
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ManuscriptCreate {
+  title?: string;
+  content?: string;
+  status?: string;
+  document_id?: string | null;
+}
+
+export interface ManuscriptUpdate {
+  title?: string;
+  content?: string;
+  status?: string;
+  document_id?: string | null;
+}
+
 export interface PaperSummary {
   title: string;
   authors: string;

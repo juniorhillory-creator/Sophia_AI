@@ -2,6 +2,9 @@ import type {
   ChatResponse,
   Document,
   ErrorBody,
+  Manuscript,
+  ManuscriptCreate,
+  ManuscriptUpdate,
   PaperSummary,
   SourceCitation,
 } from "./types";
@@ -318,3 +321,66 @@ export async function deleteDocument(documentId: string): Promise<void> {
     throw toApiError(response.status, payload);
   }
 }
+
+export async function fetchManuscripts(): Promise<Manuscript[]> {
+  const response = await fetch("/api/v1/manuscripts", {
+    headers: authHeaders(),
+  });
+  if (!response.ok) {
+    const payload = await readJson(response);
+    throw toApiError(response.status, payload);
+  }
+  return (await response.json()) as Manuscript[];
+}
+
+export async function fetchManuscript(manuscriptId: string): Promise<Manuscript> {
+  const response = await fetch(`/api/v1/manuscripts/${manuscriptId}`, {
+    headers: authHeaders(),
+  });
+  if (!response.ok) {
+    const payload = await readJson(response);
+    throw toApiError(response.status, payload);
+  }
+  return (await response.json()) as Manuscript;
+}
+
+export async function createManuscript(payload: ManuscriptCreate): Promise<Manuscript> {
+  const response = await fetch("/api/v1/manuscripts", {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const payloadErr = await readJson(response);
+    throw toApiError(response.status, payloadErr);
+  }
+  return (await response.json()) as Manuscript;
+}
+
+export async function updateManuscript(
+  manuscriptId: string,
+  payload: ManuscriptUpdate,
+): Promise<Manuscript> {
+  const response = await fetch(`/api/v1/manuscripts/${manuscriptId}`, {
+    method: "PUT",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const payloadErr = await readJson(response);
+    throw toApiError(response.status, payloadErr);
+  }
+  return (await response.json()) as Manuscript;
+}
+
+export async function deleteManuscript(manuscriptId: string): Promise<void> {
+  const response = await fetch(`/api/v1/manuscripts/${manuscriptId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!response.ok) {
+    const payload = await readJson(response);
+    throw toApiError(response.status, payload);
+  }
+}
+

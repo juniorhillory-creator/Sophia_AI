@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.auth import router as auth_router
 from app.api.documents import router as documents_router
 from app.api.health import router as health_router
+from app.api.manuscripts import router as manuscripts_router
 from app.core.handlers import register_error_handlers
 from app.core.log_config import configure_logging
 from app.core.settings import Settings, get_settings
@@ -60,7 +61,7 @@ def create_app(
     app.state.settings = resolved
     app.state.sessions = SessionStore()
     app.state.llm = OllamaClient(
-        resolved.ollama_base_url, resolved.ollama_model
+        resolved.ollama_base_url, resolved.ollama_model, resolved.ollama_num_gpu
     )
     app.state.rag = RagService(
         embedder or SentenceTransformerEmbedder(resolved.embedding_model),
@@ -95,6 +96,7 @@ def create_app(
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(documents_router)
+    app.include_router(manuscripts_router)
     return app
 
 

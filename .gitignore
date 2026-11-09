@@ -5,19 +5,83 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 *.egg-info/
+# Environment variables
 .env
-*.pyc
-data/
-.env.example
+.env.*
+!.env.example
+*.env
+backend/.env
+frontend/.env
 
-# Private keys and secrets
+# Local data, Chroma vector store, SQLite
+data/
+**/data/
+chroma/
+**/chroma/
+*.db
+*.sqlite
+*.sqlite3
+
+# Private keys, certificates, and secrets
 backend/keys/private.pem
 backend/keys/public.pem
 *.pem
 *.key
+*.cert
+credentials.json
+token.json
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+
+# Build artifacts
+dist/
+build/
+*.tsbuildinfo
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Supabase
+supabase/.temp/
+supabase/.branches/
+
+# Frontend
 frontend/node_modules/
 frontend/dist/
+*.tsbuildinfo
+frontend/.vercel
 
+# Vercel
+.vercel
+
+# Docker
+.docker/
+
+# Test artifacts
+coverage/
+.nyc_output/
+
+# Supabase
 supabase/.temp/
 supabase/.branches/
 
