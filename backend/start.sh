@@ -1,7 +1,11 @@
 #!/bin/bash
 set -e
 
-# Ensure permissions on mounted volume
+# Point HOME explicitly to /root for internal daemon configs
+export HOME=/root
+mkdir -p /root/.ollama
+
+# Ensure permissions on mounted volume for Ollama models
 mkdir -p /home/user/.ollama/models
 chmod -R 777 /home/user/.ollama 2>/dev/null || true
 
