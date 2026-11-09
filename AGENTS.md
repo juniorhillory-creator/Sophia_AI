@@ -64,6 +64,7 @@ Use the technologies already installed in the project when they satisfy the requ
 10. Do not hardcode secrets.
 11. Do not commit `.env` files, uploaded PDFs, model files, or database files.
 12. Ask before making destructive changes or deleting existing functionality.
+13. Never run `git commit` or `git push` automatically. Leave all git staging, commits, and pushes to the user unless explicitly instructed.
 
 ## Security Rules
 
