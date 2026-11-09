@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { uploadDocument, rejectUpload, errorMessage } from "../api/client";
+import { uploadDocument, rejectUpload, errorMessage, fetchDocuments, deleteDocument } from "../api/client";
 import type { Document } from "../api/types";
 import { Sidebar } from "../components/Sidebar";
 import { DashboardHeader } from "../components/DashboardHeader";
@@ -13,10 +13,30 @@ export function DashboardPage({ initialDocument }: { initialDocument?: Document 
   const { user } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [documents, setDocuments] = useState<Document[]>(initialDocument ? [initialDocument] : []);
+  const [loadingDocs, setLoadingDocs] = useState(true);
   const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "processing" | "success" | "error">("idle");
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentErrors, setDocumentErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const list = await fetchDocuments();
+        if (active && list.length > 0) {
+          setDocuments(list);
+        }
+      } catch {
+        // Handled silently; empty state displays if list is empty
+      } finally {
+        if (active) setLoadingDocs(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -70,8 +90,13 @@ export function DashboardPage({ initialDocument }: { initialDocument?: Document 
     navigate(`/workspace/${documentId}`);
   };
 
-  const handleDeleteDocument = (documentId: string) => {
-    setDocuments((prev) => prev.filter((d) => d.id !== documentId));
+  const handleDeleteDocument = async (documentId: string) => {
+    try {
+      await deleteDocument(documentId);
+      setDocuments((prev) => prev.filter((d) => d.id !== documentId));
+    } catch (err) {
+      alert(`Failed to delete document: ${errorMessage(err)}`);
+    }
   };
 
   const handleRetryDocument = (documentId: string) => {
@@ -198,16 +223,16 @@ export function DashboardPage({ initialDocument }: { initialDocument?: Document 
                 <h2 className="text-lg font-semibold text-stone-900">Recent Documents</h2>
               </div>
 
-              {uploadStatus === "uploading" || uploadStatus === "processing" ? (
+              {loadingDocs || uploadStatus === "uploading" || uploadStatus === "processing" ? (
                 <LoadingSkeleton count={2} />
               ) : null}
 
-              {documents.length === 0 && uploadStatus === "idle" && !selectedFile ? (
+              {!loadingDocs && documents.length === 0 && uploadStatus === "idle" && !selectedFile ? (
                 <EmptyState
                   title="No documents yet"
                   description="Upload your first research paper to get started. Sophia will generate a structured summary and answer questions about its contents."
                   actionLabel="Upload Research Paper"
-                  onAction={() => navigate("/upload")}
+                  onAction={() => document.getElementById("dashboard-file-input")?.click()}
                 />
               ) : null}
 
