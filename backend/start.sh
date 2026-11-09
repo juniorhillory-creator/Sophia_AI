@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Ensure permissions on mounted volume
+mkdir -p /home/user/.ollama/models
+chmod -R 777 /home/user/.ollama 2>/dev/null || true
+
 # Start Ollama daemon in background
 echo "Starting Ollama daemon..."
 ollama serve &

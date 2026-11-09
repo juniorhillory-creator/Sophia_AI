@@ -51,8 +51,6 @@ RUN mkdir -p /home/user/app/data/documents \
     && chown -R user:user /home/user \
     && chmod +x ./start.sh
 
-USER user
-
 EXPOSE 7860
 
 CMD ["./start.sh"]
