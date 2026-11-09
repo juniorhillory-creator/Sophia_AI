@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: sophia-ai-backend
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: oregon
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.8-flash
+      - key: LLM_TIMEOUT_SECONDS
+        value: "120"
+      - key: CORS_ORIGINS
+        value: '["https://sophia-ai-kappa.vercel.app","http://localhost:5173"]'
+
