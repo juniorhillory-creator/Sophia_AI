@@ -8,10 +8,6 @@ __pycache__/
 .env
 .env.local
 .env.*.local
-.env.production
-.env.development
-.env.staging
-.env.test
 *.pyc
 data/
 .env.example
