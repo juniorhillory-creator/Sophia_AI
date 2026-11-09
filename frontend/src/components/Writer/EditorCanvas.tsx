@@ -6,6 +6,7 @@ interface EditorCanvasProps {
   content: string;
   onContentChange: (content: string) => void;
   lastSavedAt: Date | null;
+  syncStatus?: "saved" | "saving" | "offline";
 }
 
 export function EditorCanvas({
@@ -14,6 +15,7 @@ export function EditorCanvas({
   content,
   onContentChange,
   lastSavedAt,
+  syncStatus,
 }: EditorCanvasProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -40,10 +42,26 @@ export function EditorCanvas({
           <div className="mt-3 flex items-center gap-3 text-xs text-stone-400">
             <span>Academic Draft</span>
             <span>•</span>
-            <span>
-              {lastSavedAt
-                ? `Auto-saved at ${lastSavedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
-                : "Saved locally"}
+            <span className="flex items-center gap-1.5">
+              {syncStatus === "saving" ? (
+                <>
+                  <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span>Saving to cloud…</span>
+                </>
+              ) : syncStatus === "saved" ? (
+                <>
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <span>
+                    Cloud synced{lastSavedAt ? ` (${lastSavedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})` : ""}
+                  </span>
+                </>
+              ) : (
+                <span>
+                  {lastSavedAt
+                    ? `Auto-saved locally at ${lastSavedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                    : "Draft saved locally"}
+                </span>
+              )}
             </span>
           </div>
         </div>
