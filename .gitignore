@@ -68,3 +68,7 @@ frontend/.vercel
 coverage/
 .nyc_output/
 
+# Supabase
+supabase/.temp/
+supabase/.branches/
+

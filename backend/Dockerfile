@@ -1,16 +1,13 @@
-# Backend Dockerfile
-# Multi-stage build for production
+# Multi-stage build for Sophia AI Backend on Hugging Face Spaces (16GB RAM Free Tier)
 FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
 COPY pyproject.toml ./
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -e .
@@ -18,37 +15,43 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Production stage
 FROM python:3.11-slim AS production
 
-WORKDIR /app
-
-# Install runtime dependencies
+# Install runtime libraries and Ollama
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
     libpq5 \
     poppler-utils \
     tesseract-ocr \
+    && curl -fsSL https://ollama.com/install.sh | sh \
     && rm -rf /var/lib/apt/lists/*
+
+# Setup user with UID 1000 (required for Hugging Face Spaces)
+RUN useradd -m -u 1000 user
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH \
+    OLLAMA_MODELS=/home/user/.ollama/models \
+    OLLAMA_NUM_GPU=0 \
+    PORT=7860
+
+WORKDIR $HOME/app
 
 # Copy Python packages from builder
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy application code
-COPY app/ ./app/
+# Copy app code, keys, and startup script
+COPY --chown=user:user app/ ./app/
+COPY --chown=user:user keys/ ./keys/
+COPY --chown=user:user start.sh ./start.sh
 
-# Create data directories
-RUN mkdir -p /app/data/documents /app/data/chroma
+# Create runtime directories with user ownership
+RUN mkdir -p /home/user/app/data/documents \
+             /home/user/app/data/chroma \
+             /home/user/.ollama/models \
+    && chown -R user:user /home/user \
+    && chmod +x ./start.sh
 
-# Create non-root user
-RUN useradd --create-home --shell /bin/bash app \
-    && chown -R app:app /app
+USER user
 
-USER app
+EXPOSE 7860
 
-# Expose port
-EXPOSE 8000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import httpx; httpx.get('http://localhost:8000/health', timeout=5)" || exit 1
-
-# Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["./start.sh"]
