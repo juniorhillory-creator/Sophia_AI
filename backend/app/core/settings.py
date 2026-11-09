@@ -58,6 +58,9 @@ class Settings(BaseSettings):
         default_factory=lambda: ["http://localhost:5173", "http://localhost:5174"]
     )
     log_level: str = "INFO"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.8-flash"
+    llm_timeout_seconds: float = 120
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "llama3.2"
     ollama_timeout_seconds: float = 120
@@ -161,6 +164,8 @@ class Settings(BaseSettings):
             raise ValueError("chunk_size must be positive")
         if self.chunk_overlap < 0 or self.chunk_overlap >= self.chunk_size:
             raise ValueError("chunk_overlap must be >= 0 and smaller than chunk_size")
+        if self.llm_timeout_seconds <= 0:
+            raise ValueError("llm_timeout_seconds must be positive")
         if self.ollama_timeout_seconds <= 0:
             raise ValueError("ollama_timeout_seconds must be positive")
         if self.retrieval_top_k not in (3, 4):

@@ -1,4 +1,4 @@
-# Multi-stage build for Sophia AI Backend on Hugging Face Spaces (16GB RAM Free Tier)
+# Multi-stage build for Sophia AI Backend
 FROM python:3.11-slim AS builder
 
 WORKDIR /app
@@ -15,22 +15,16 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Production stage
 FROM python:3.11-slim AS production
 
-# Install runtime libraries and Ollama
+# Install runtime libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     libpq5 \
     poppler-utils \
-    tesseract-ocr \
-    zstd \
-    && curl -fsSL https://ollama.com/install.sh | sh \
     && rm -rf /var/lib/apt/lists/*
 
 # Setup runtime environment
-ENV HOME=/root \
-    PATH=/usr/local/bin:$PATH \
-    OLLAMA_MODELS=/home/user/.ollama/models \
-    OLLAMA_NUM_GPU=0 \
-    PORT=7860
+ENV PATH=/usr/local/bin:$PATH \
+    PORT=8000
 
 WORKDIR /app
 
@@ -46,10 +40,8 @@ COPY start.sh ./start.sh
 # Create runtime directories
 RUN mkdir -p /app/data/documents \
              /app/data/chroma \
-             /home/user/.ollama/models \
-             /root/.ollama \
     && chmod +x ./start.sh
 
-EXPOSE 7860
+EXPOSE 8000
 
 CMD ["./start.sh"]
