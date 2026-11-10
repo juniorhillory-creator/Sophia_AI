@@ -36,6 +36,7 @@ export function WriterPage() {
 
   // Editor content state
   const storageKey = `sophia_draft_${user?.id || "anon"}_${selectedDocId || "main"}`;
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [manuscriptId, setManuscriptId] = useState<string | null>(null);
   const [title, setTitle] = useState("Research Synthesis Manuscript");
   const [content, setContent] = useState(DEFAULT_TEMPLATE);
@@ -90,11 +91,15 @@ export function WriterPage() {
           if (parsed.title) setTitle(parsed.title);
           if (parsed.content) setContent(parsed.content);
           if (parsed.savedAt) setLastSavedAt(new Date(parsed.savedAt));
+        } else if (active) {
+          setTitle("Research Synthesis Manuscript");
+          setContent(DEFAULT_TEMPLATE);
         }
       } catch {
         // Ignore parse errors
       }
       if (active) {
+        setManuscriptId(null);
         isLoadedRef.current = true;
       }
     })();
@@ -103,36 +108,34 @@ export function WriterPage() {
     };
   }, [selectedDocId, storageKey]);
 
-  // Auto-save debounced to cloud and local storage
-  useEffect(() => {
-    if (!isLoadedRef.current) return;
-
-    const timer = setTimeout(async () => {
+  // Execute save to backend
+  const persistDraft = useCallback(
+    async (targetTitle: string, targetContent: string) => {
       const now = new Date();
-      // 1. Always backup to localStorage
+      // 1. LocalStorage backup
       try {
         localStorage.setItem(
           storageKey,
-          JSON.stringify({ title, content, savedAt: now.toISOString() }),
+          JSON.stringify({ title: targetTitle, content: targetContent, savedAt: now.toISOString() }),
         );
       } catch {
-        // Storage quota exceeded or disabled
+        // Local quota exceeded
       }
 
-      // 2. Cloud sync to Supabase
+      // 2. Cloud sync
       setSyncStatus("saving");
       try {
         if (manuscriptId) {
           const updated = await updateManuscript(manuscriptId, {
-            title,
-            content,
+            title: targetTitle,
+            content: targetContent,
             document_id: selectedDocId,
           });
           setLastSavedAt(new Date(updated.updated_at));
         } else {
           const created = await createManuscript({
-            title,
-            content,
+            title: targetTitle,
+            content: targetContent,
             document_id: selectedDocId,
           });
           setManuscriptId(created.id);
@@ -143,30 +146,127 @@ export function WriterPage() {
         setSyncStatus("offline");
         setLastSavedAt(now);
       }
+    },
+    [manuscriptId, selectedDocId, storageKey],
+  );
+
+  // Auto-save debounced to cloud and local storage
+  useEffect(() => {
+    if (!isLoadedRef.current) return;
+    const timer = setTimeout(() => {
+      void persistDraft(title, content);
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [title, content, manuscriptId, selectedDocId, storageKey]);
+  }, [title, content, persistDraft]);
+
+  const handleManualSave = useCallback(() => {
+    void persistDraft(title, content);
+  }, [title, content, persistDraft]);
+
+  const handleNewDraft = useCallback(() => {
+    if (content !== DEFAULT_TEMPLATE && content.trim().length > 0) {
+      const confirmed = window.confirm(
+        "Start a new manuscript draft? Any unsaved changes in this draft will be replaced.",
+      );
+      if (!confirmed) return;
+    }
+    setManuscriptId(null);
+    setTitle("Untitled Research Manuscript");
+    setContent(DEFAULT_TEMPLATE);
+    setSyncStatus("saved");
+  }, [content]);
 
   // Calculate metrics
   const words = content.trim() ? content.trim().split(/\s+/).length : 0;
   const chars = content.length;
 
-  const handleFormat = (type: "h1" | "h2" | "bold" | "italic" | "list" | "quote") => {
-    const prefixMap = {
-      h1: "\n# ",
-      h2: "\n## ",
-      bold: "**Bold Text**",
-      italic: "*Italic Text*",
-      list: "\n- ",
-      quote: "\n> ",
-    };
-    setContent((prev) => `${prev}${prefixMap[type]}`);
-  };
+  const handleFormat = useCallback(
+    (type: "h1" | "h2" | "bold" | "italic" | "list" | "quote") => {
+      const textarea = textareaRef.current;
+      if (!textarea) {
+        const prefixMap = {
+          h1: "\n# ",
+          h2: "\n## ",
+          bold: "**Bold Text**",
+          italic: "*Italic Text*",
+          list: "\n- ",
+          quote: "\n> ",
+        };
+        setContent((prev) => `${prev}${prefixMap[type]}`);
+        return;
+      }
 
-  const handleInsertText = useCallback((snippet: string) => {
-    setContent((prev) => `${prev}\n${snippet}`);
-  }, []);
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const selected = content.slice(start, end);
+
+      let before = "";
+      let after = "";
+      let placeholder = "";
+
+      switch (type) {
+        case "h1":
+          before = "\n# ";
+          placeholder = "Heading 1";
+          break;
+        case "h2":
+          before = "\n## ";
+          placeholder = "Heading 2";
+          break;
+        case "bold":
+          before = "**";
+          after = "**";
+          placeholder = "Bold Text";
+          break;
+        case "italic":
+          before = "*";
+          after = "*";
+          placeholder = "Italic Text";
+          break;
+        case "list":
+          before = "\n- ";
+          placeholder = "List item";
+          break;
+        case "quote":
+          before = "\n> ";
+          placeholder = "Blockquote";
+          break;
+      }
+
+      const wrapped = selected || placeholder;
+      const replacement = `${before}${wrapped}${after}`;
+      const nextContent = content.slice(0, start) + replacement + content.slice(end);
+      setContent(nextContent);
+
+      setTimeout(() => {
+        textarea.focus();
+        const cursor = start + before.length + wrapped.length + after.length;
+        textarea.setSelectionRange(cursor, cursor);
+      }, 0);
+    },
+    [content],
+  );
+
+  const handleInsertText = useCallback(
+    (snippet: string) => {
+      const textarea = textareaRef.current;
+      if (!textarea) {
+        setContent((prev) => `${prev}\n${snippet}`);
+        return;
+      }
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const nextContent = content.slice(0, start) + snippet + content.slice(end);
+      setContent(nextContent);
+      setTimeout(() => {
+        textarea.focus();
+        const cursor = start + snippet.length;
+        textarea.setSelectionRange(cursor, cursor);
+      }, 0);
+    },
+    [content],
+  );
 
   const handleExport = (format: "md" | "txt") => {
     const mime = format === "md" ? "text/markdown" : "text/plain";
@@ -196,6 +296,9 @@ export function WriterPage() {
           onFormat={handleFormat}
           onExport={handleExport}
           onCopyAll={handleCopyAll}
+          onSave={handleManualSave}
+          onNewDraft={handleNewDraft}
+          syncStatus={syncStatus}
           hasActivePaper={Boolean(selectedDocId)}
         />
 
@@ -207,6 +310,7 @@ export function WriterPage() {
             onContentChange={setContent}
             lastSavedAt={lastSavedAt}
             syncStatus={syncStatus}
+            textareaRef={textareaRef}
           />
 
           {drawerOpen && (

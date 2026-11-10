@@ -7,6 +7,7 @@ interface EditorCanvasProps {
   onContentChange: (content: string) => void;
   lastSavedAt: Date | null;
   syncStatus?: "saved" | "saving" | "offline";
+  textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
 export function EditorCanvas({
@@ -16,8 +17,10 @@ export function EditorCanvas({
   onContentChange,
   lastSavedAt,
   syncStatus,
+  textareaRef: externalTextareaRef,
 }: EditorCanvasProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const internalRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = externalTextareaRef || internalRef;
 
   // Auto-resize textarea to fit text
   useEffect(() => {
@@ -25,7 +28,7 @@ export function EditorCanvas({
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.max(el.scrollHeight, 400)}px`;
-  }, [content]);
+  }, [content, textareaRef]);
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-12 lg:px-20 bg-stone-50/60 scrollbar-thin">
