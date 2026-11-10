@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { googleAuth } from "../api/auth";
 import { useAuth } from "../contexts/AuthContext";
@@ -10,6 +10,7 @@ export function GoogleCallbackPage() {
   const { setSession } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const handledRef = useRef(false);
 
   useEffect(() => {
     // 1. Extract params from both search query and hash fragment
@@ -39,13 +40,16 @@ export function GoogleCallbackPage() {
       return;
     }
 
-    const handleSessionSuccess = (session: { access_token: string; refresh_token: string; user: any }) => {
+    const handleSessionSuccess = (session: { access_token: string; refresh_token?: string; user: any }) => {
+      if (handledRef.current) return;
+      handledRef.current = true;
+
       const sbUser = session.user;
       const now = new Date().toISOString();
       setSession(
         {
           access_token: session.access_token,
-          refresh_token: session.refresh_token,
+          refresh_token: session.refresh_token || "",
         },
         {
           id: sbUser.id,
@@ -62,58 +66,136 @@ export function GoogleCallbackPage() {
       window.location.replace("/dashboard");
     };
 
-    // 2. First check if a session already exists or was detected by Supabase client
-    if (isSupabaseConfigured) {
-      void (async () => {
-        try {
-          const { data, error: sessionErr } = await supabase.auth.getSession();
-          if (data?.session?.user) {
-            handleSessionSuccess(data.session);
-            return;
-          }
-        } catch {
-          // Continue to code exchange
-        }
-
-        // 3. Check query parameters for authorization code (PKCE flow)
-        const code = searchParams.get("code");
-        if (code) {
-          try {
-            const { data, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
-            if (data?.session?.user) {
-              handleSessionSuccess(data.session);
-              return;
-            }
-          } catch (sbErr) {
-            console.warn("Supabase code exchange error:", sbErr);
-          }
-
-          // Fallback to backend Google auth endpoint
+    if (!isSupabaseConfigured) {
+      // Direct backend OAuth fallback if Supabase is not configured
+      const code = searchParams.get("code") || hashParams.get("code");
+      if (code) {
+        void (async () => {
           try {
             const redirect_uri = window.location.origin + "/auth/google/callback";
             const response = await googleAuth({ code, redirect_uri });
             setSession(response.tokens, response.user);
             window.location.replace("/dashboard");
-            return;
           } catch (err: unknown) {
             setLoading(false);
-            const msg = err instanceof Error ? err.message : "Failed to complete Google sign-in. Please try again.";
-            if (msg.toLowerCase().includes("not implemented") || msg.toLowerCase().includes("not configured")) {
-              setError(
-                "Google OAuth is not configured on this project. Please configure Google OAuth credentials or sign in with your username/email and password.",
-              );
-            } else {
-              setError(msg);
-            }
-            return;
+            setError(err instanceof Error ? err.message : "Failed to complete Google sign-in.");
           }
-        }
-
-        setLoading(false);
-        setError("No authorization code received from Google.");
-      })();
+        })();
+        return;
+      }
+      setLoading(false);
+      setError("Google OAuth is not configured on this environment.");
       return;
     }
+
+    // 2. Set up Supabase auth state change listener to catch token events
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user && (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED")) {
+        handleSessionSuccess(session);
+      }
+    });
+
+    let timeoutId: number | undefined;
+
+    void (async () => {
+      // 3. Check if session is already stored or detected in URL
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (data?.session?.user) {
+          handleSessionSuccess(data.session);
+          return;
+        }
+      } catch (err) {
+        console.warn("getSession error:", err);
+      }
+
+      // 4. Check for hash parameters (implicit flow: #access_token=...&refresh_token=...)
+      const hashAccessToken = hashParams.get("access_token") || searchParams.get("access_token");
+      const hashRefreshToken = hashParams.get("refresh_token") || searchParams.get("refresh_token") || "";
+
+      if (hashAccessToken) {
+        try {
+          const { data, error: setErr } = await supabase.auth.setSession({
+            access_token: hashAccessToken,
+            refresh_token: hashRefreshToken,
+          });
+          if (data?.session?.user) {
+            handleSessionSuccess(data.session);
+            return;
+          }
+        } catch (setErr) {
+          console.warn("setSession error from hash params:", setErr);
+        }
+
+        // Fallback: verify token directly to get user
+        try {
+          const { data: userData } = await supabase.auth.getUser(hashAccessToken);
+          if (userData?.user) {
+            handleSessionSuccess({
+              access_token: hashAccessToken,
+              refresh_token: hashRefreshToken,
+              user: userData.user,
+            });
+            return;
+          }
+        } catch (userErr) {
+          console.warn("getUser error from hash token:", userErr);
+        }
+      }
+
+      // 5. Check query parameters for authorization code (PKCE flow)
+      const code = searchParams.get("code") || hashParams.get("code");
+      if (code) {
+        try {
+          const { data, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+          if (data?.session?.user) {
+            handleSessionSuccess(data.session);
+            return;
+          }
+        } catch (sbErr) {
+          console.warn("Supabase code exchange error:", sbErr);
+        }
+
+        // Fallback to backend Google auth endpoint
+        try {
+          const redirect_uri = window.location.origin + "/auth/google/callback";
+          const response = await googleAuth({ code, redirect_uri });
+          setSession(response.tokens, response.user);
+          window.location.replace("/dashboard");
+          return;
+        } catch (err: unknown) {
+          setLoading(false);
+          const msg = err instanceof Error ? err.message : "Failed to complete Google sign-in. Please try again.";
+          if (msg.toLowerCase().includes("not implemented") || msg.toLowerCase().includes("not configured")) {
+            setError(
+              "Google OAuth is not configured on this project. Please configure Google OAuth credentials or sign in with your username/email and password.",
+            );
+          } else {
+            setError(msg);
+          }
+          return;
+        }
+      }
+
+      // 6. Give onAuthStateChange a grace period to process background URL tokens
+      timeoutId = window.setTimeout(() => {
+        if (!handledRef.current) {
+          setLoading(false);
+          setError(
+            "No authorization code received from Google. If you are using Supabase, please verify that 'https://sophia-ai-kappa.vercel.app/**' is added to your Redirect URLs in the Supabase Dashboard (Authentication > URL Configuration).",
+          );
+        }
+      }, 2000);
+    })();
+
+    return () => {
+      subscription.unsubscribe();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [navigate, setSession]);
 
   if (loading) {
