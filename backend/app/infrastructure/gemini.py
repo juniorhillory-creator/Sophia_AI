@@ -12,18 +12,30 @@ logger = logging.getLogger("sophia.gemini")
 _FALLBACK_MODELS = ("gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash")
 
 
-def _clean_schema(schema: dict[str, Any] | None) -> dict[str, Any] | None:
-    if not schema:
-        return None
-    cleaned = {k: v for k, v in schema.items() if k not in ("title", "$defs", "definitions", "extra")}
-    if "properties" in cleaned and isinstance(cleaned["properties"], dict):
-        new_props = {}
-        for prop, prop_val in cleaned["properties"].items():
-            if isinstance(prop_val, dict):
-                new_props[prop] = {k: v for k, v in prop_val.items() if k not in ("title", "extra")}
+_ALLOWED_SCHEMA_KEYS = {
+    "type",
+    "format",
+    "description",
+    "nullable",
+    "enum",
+    "items",
+    "properties",
+    "required",
+}
+
+
+def _clean_schema(schema: Any) -> Any:
+    if not isinstance(schema, dict):
+        return schema
+    cleaned: dict[str, Any] = {}
+    for k, v in schema.items():
+        if k in _ALLOWED_SCHEMA_KEYS:
+            if k == "properties" and isinstance(v, dict):
+                cleaned[k] = {prop: _clean_schema(prop_val) for prop, prop_val in v.items()}
+            elif k == "items":
+                cleaned[k] = _clean_schema(v)
             else:
-                new_props[prop] = prop_val
-        cleaned["properties"] = new_props
+                cleaned[k] = v
     return cleaned
 
 
@@ -51,11 +63,14 @@ class GeminiClient:
                 # If API key is invalid, fail immediately with clear key message
                 if "api key" in err_msg or "api_key" in err_msg or "key not valid" in err_msg:
                     raise _map_error(exc) from exc
+                # If schema error, do not rotate models - let caller handle schema fallback
+                if "schema" in err_msg or "additional_properties" in err_msg or "additionalproperties" in err_msg:
+                    raise exc
                 # If model is invalid, unsupported, or not found, try next candidate
                 if err_code in (400, 404) and any(kw in err_msg for kw in ("not found", "not supported", "unknown model", "model not", "is not supported")):
                     continue
-                raise _map_error(exc) from exc
-        raise _map_error(last_exc) from last_exc
+                raise exc
+        raise last_exc
 
     def complete(
         self,
@@ -65,10 +80,10 @@ class GeminiClient:
         timeout: float,
     ) -> str:
         system_instruction, contents = _extract_messages(messages)
-        cleaned_schema = _clean_schema(json_schema)
+        cleaned_schema = _clean_schema(json_schema) if json_schema else None
         config = types.GenerateContentConfig(
             system_instruction=system_instruction,
-            response_mime_type="application/json" if cleaned_schema else None,
+            response_mime_type="application/json" if json_schema else None,
             response_schema=cleaned_schema,
         )
         try:
@@ -77,25 +92,10 @@ class GeminiClient:
                 contents=contents,
                 config=config,
             )
-        except AppError as exc:
-            if "400" in str(exc) and cleaned_schema:
-                # Retry with JSON response mime-type only, omitting schema
-                config_no_schema = types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    response_mime_type="application/json",
-                )
-                try:
-                    response = self._call_with_fallback(
-                        self._client.models.generate_content,
-                        contents=contents,
-                        config=config_no_schema,
-                    )
-                except Exception:
-                    raise exc
-            else:
-                raise
         except APIError as exc:
-            if getattr(exc, "code", 500) == 400 and cleaned_schema:
+            # If Google rejects response_schema, retry without schema using pure JSON mime-type
+            if cleaned_schema is not None:
+                logger.info("gemini_schema_rejected_fallback_to_json", extra={"error_detail": str(exc)})
                 config_no_schema = types.GenerateContentConfig(
                     system_instruction=system_instruction,
                     response_mime_type="application/json",
@@ -106,10 +106,12 @@ class GeminiClient:
                         contents=contents,
                         config=config_no_schema,
                     )
-                except Exception:
-                    raise _map_error(exc) from exc
+                except APIError as exc2:
+                    raise _map_error(exc2) from exc2
             else:
                 raise _map_error(exc) from exc
+        except AppError:
+            raise
         except Exception as exc:
             logger.warning("gemini_error", extra={"error": str(exc)})
             raise AppError("model_unavailable", f"The Gemini request failed: {exc}", 503) from exc
