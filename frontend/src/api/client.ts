@@ -13,10 +13,18 @@ export const INSUFFICIENT = "The paper does not contain sufficient information."
 
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
-const rawBase = (import.meta.env.VITE_API_BASE_URL || "")
+const configuredBase = (import.meta.env.VITE_API_BASE_URL || "")
   .replace(/^VITE_API_BASE_URL=+/i, "")
   .trim()
   .replace(/\/+$/, "");
+
+// In production, fallback to Render backend if VITE_API_BASE_URL is not set
+const fallbackBase = import.meta.env.PROD
+  ? "https://sophia-ai.onrender.com"
+  : "http://localhost:10000";
+
+const rawBase = configuredBase || fallbackBase;
+
 export const API_BASE = rawBase.endsWith("/api/v1")
   ? rawBase.slice(0, -"/api/v1".length)
   : rawBase;
@@ -226,10 +234,28 @@ export function uploadDocument(
     if (authToken) {
       xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
     }
+    xhr.timeout = 120000; // 2 minutes for Render cold boot and PDF embedding
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(event.loaded, event.total);
     };
-    xhr.onerror = () => reject(new ApiError(0, "network_error", "Could not reach the server."));
+    xhr.ontimeout = () => {
+      reject(
+        new ApiError(
+          0,
+          "timeout",
+          `Upload request timed out reaching ${API_BASE}. The backend may be waking up from sleep; please try again in a moment.`,
+        ),
+      );
+    };
+    xhr.onerror = () => {
+      reject(
+        new ApiError(
+          0,
+          "network_error",
+          `Could not reach the server at ${API_BASE}. If the backend is waking up, please wait a moment and try again.`,
+        ),
+      );
+    };
     xhr.onload = async () => {
       let payload: unknown = null;
       try {
