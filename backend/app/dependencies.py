@@ -120,7 +120,15 @@ def get_rag(request: Request) -> RagService:
 
 
 def get_ingestion(request: Request, user_id: UUID = Depends(get_current_user)) -> IngestionService:
-    return IngestionService(request.app.state.settings, get_sessions(request), get_rag(request).index, user_id)
+    llm = getattr(request.app.state, "llm", None)
+    vision_transcriber = getattr(llm, "transcribe_image", None) if llm else None
+    return IngestionService(
+        request.app.state.settings,
+        get_sessions(request),
+        get_rag(request).index,
+        user_id,
+        vision_transcriber=vision_transcriber,
+    )
 
 
 def get_llm(request: Request) -> Llm:

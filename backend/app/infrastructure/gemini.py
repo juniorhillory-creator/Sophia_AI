@@ -69,6 +69,36 @@ class GeminiClient:
             logger.warning("gemini_stream_error", extra={"error": str(exc)})
             raise AppError("model_unavailable", "The Gemini stream failed.", 503) from exc
 
+    def transcribe_image(
+        self,
+        image_bytes: bytes,
+        *,
+        mime_type: str = "image/png",
+        prompt: str = (
+            "You are an academic document OCR transcription assistant. "
+            "Transcribe all text, headings, mathematical formulas, footnotes, and tables "
+            "from this scientific research paper page verbatim. "
+            "Preserve original layout, paragraph breaks, and scientific terminology. "
+            "Do not summarize, extrapolate, or add commentary."
+        ),
+    ) -> str:
+        try:
+            response = self._client.models.generate_content(
+                model=self._model,
+                contents=[
+                    types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                    prompt,
+                ],
+            )
+        except APIError as exc:
+            raise _map_error(exc) from exc
+        except Exception as exc:
+            logger.warning("gemini_vision_error", extra={"error": str(exc)})
+            raise AppError("model_unavailable", "Failed to transcribe scanned document page.", 503) from exc
+
+        text = response.text or ""
+        return text.strip()
+
 
 def _extract_messages(messages: list[dict[str, str]]) -> tuple[str | None, str]:
     system_parts: list[str] = []
