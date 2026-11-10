@@ -214,6 +214,7 @@ async function readJson(response: Response): Promise<unknown> {
 export function uploadDocument(
   file: File,
   onProgress: (loaded: number, total: number) => void,
+  isRetry = false,
 ): Promise<Document> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -226,12 +227,28 @@ export function uploadDocument(
       if (event.lengthComputable) onProgress(event.loaded, event.total);
     };
     xhr.onerror = () => reject(new ApiError(0, "network_error", "Could not reach the server."));
-    xhr.onload = () => {
+    xhr.onload = async () => {
       let payload: unknown = null;
       try {
         payload = xhr.responseText ? (JSON.parse(xhr.responseText) as unknown) : null;
       } catch {
         payload = null;
+      }
+      if (xhr.status === 401 && !isRetry) {
+        // Access token expired - attempt silent refresh and replay upload once
+        const refreshed = await tryRefreshToken();
+        if (refreshed) {
+          try {
+            const retriedDoc = await uploadDocument(file, onProgress, true);
+            resolve(retriedDoc);
+            return;
+          } catch (retryErr) {
+            reject(retryErr);
+            return;
+          }
+        }
+        reject(new ApiError(401, "unauthorized", "Session expired. Please sign in again or retry upload."));
+        return;
       }
       if (xhr.status === 401) {
         reject(new ApiError(401, "unauthorized", "Session expired. Please sign in again or retry upload."));
