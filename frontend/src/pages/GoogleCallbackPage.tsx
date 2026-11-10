@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { googleAuth } from "../api/auth";
 import { useAuth } from "../contexts/AuthContext";
 import { AuthLayout } from "../components/AuthLayout";
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 export function GoogleCallbackPage() {
   const navigate = useNavigate();
@@ -12,6 +13,47 @@ export function GoogleCallbackPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // 1. Check if Supabase handled OAuth directly via URL hash
+    if (isSupabaseConfigured && window.location.hash && window.location.hash.includes("access_token")) {
+      (async () => {
+        try {
+          const { data, error: sessionErr } = await supabase.auth.getSession();
+          if (data?.session?.user) {
+            const sbUser = data.session.user;
+            const now = new Date().toISOString();
+            setSession(
+              {
+                access_token: data.session.access_token,
+                refresh_token: data.session.refresh_token,
+              },
+              {
+                id: sbUser.id,
+                username: sbUser.user_metadata?.username || sbUser.email?.split("@")[0] || "user",
+                email: sbUser.email || "",
+                full_name: sbUser.user_metadata?.full_name || null,
+                avatar_url: sbUser.user_metadata?.avatar_url || null,
+                is_active: true,
+                is_verified: true,
+                created_at: now,
+                updated_at: now,
+              },
+            );
+            navigate("/dashboard", { replace: true });
+            return;
+          }
+          if (sessionErr) {
+            setLoading(false);
+            setError(`Google session error: ${sessionErr.message}`);
+            return;
+          }
+        } catch (err) {
+          // Fall through to query parameter check
+        }
+      })();
+      return;
+    }
+
+    // 2. Check query parameters
     const code = searchParams.get("code");
     const errorParam = searchParams.get("error");
     const errorDescription = searchParams.get("error_description");
@@ -34,9 +76,10 @@ export function GoogleCallbackPage() {
         const response = await googleAuth({ code, redirect_uri });
         setSession(response.tokens, response.user);
         navigate("/dashboard", { replace: true });
-      } catch {
+      } catch (err: unknown) {
         setLoading(false);
-        setError("Failed to complete Google sign-in. Please try again.");
+        const msg = err instanceof Error ? err.message : "Failed to complete Google sign-in. Please try again.";
+        setError(msg);
       }
     })();
   }, [searchParams, navigate, setSession]);

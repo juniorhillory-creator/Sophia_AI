@@ -75,7 +75,7 @@ export function NavRail({ collapsed, onToggleCollapse }: NavRailProps) {
   return (
     <aside
       className={`relative z-30 flex flex-col border-r border-stone-200 bg-white transition-all duration-200 ease-in-out ${
-        collapsed ? "w-16" : "w-60"
+        collapsed ? "w-16" : "w-64"
       }`}
       aria-label="Application Rail"
     >
@@ -120,7 +120,7 @@ export function NavRail({ collapsed, onToggleCollapse }: NavRailProps) {
               title={collapsed ? item.label : undefined}
               className={`group flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm font-medium transition-all ${
                 isActive
-                  ? "bg-brand/10 text-brand font-semibold shadow-xs"
+                  ? "bg-brand-light text-brand font-semibold shadow-xs"
                   : "text-stone-600 hover:bg-stone-100 hover:text-stone-900"
               } ${collapsed ? "justify-center px-0" : ""}`}
             >
@@ -129,7 +129,7 @@ export function NavRail({ collapsed, onToggleCollapse }: NavRailProps) {
                 <div className="flex flex-1 items-center justify-between overflow-hidden text-left animate-fade-in">
                   <span className="truncate">{item.label}</span>
                   {item.badge && (
-                    <span className="rounded bg-brand/15 px-1.5 py-0.2 text-[9px] font-semibold uppercase tracking-wider text-brand">
+                    <span className="rounded bg-brand-light px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-brand border border-brand/20">
                       {item.badge}
                     </span>
                   )}
