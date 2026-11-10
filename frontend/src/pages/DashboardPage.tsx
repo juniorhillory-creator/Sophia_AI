@@ -26,6 +26,9 @@ export function DashboardPage({
   const [uploading, setUploading] = useState(false);
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [docToDelete, setDocToDelete] = useState<{ id: string; filename: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const loadDocuments = useCallback(async () => {
     setLoadingDocs(true);
@@ -74,19 +77,18 @@ export function DashboardPage({
     }
   };
 
-  const handleDelete = async (docId: string, filename: string) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to delete "${filename}"? This will remove its vectors and summary permanently.`,
-      )
-    ) {
-      return;
-    }
+  const confirmDelete = async () => {
+    if (!docToDelete) return;
+    setDeleting(true);
+    setDeleteError(null);
     try {
-      await deleteDocument(docId);
-      setDocuments((prev) => prev.filter((d) => d.id !== docId));
+      await deleteDocument(docToDelete.id);
+      setDocuments((prev) => prev.filter((d) => d.id !== docToDelete.id));
+      setDocToDelete(null);
     } catch (err) {
-      alert(`Failed to delete document: ${errorMessage(err)}`);
+      setDeleteError(errorMessage(err));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -396,7 +398,7 @@ export function DashboardPage({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleDelete(doc.id, doc.filename)}
+                                onClick={() => setDocToDelete({ id: doc.id, filename: doc.filename })}
                                 className="p-1 text-stone-400 hover:text-red-500 transition-colors cursor-pointer"
                                 title="Delete paper"
                               >
@@ -425,6 +427,56 @@ export function DashboardPage({
           )}
         </div>
       </main>
+
+      {/* Delete Confirmation Modal */}
+      {docToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-stone-900/40 backdrop-blur-xs transition-opacity"
+            onClick={() => !deleting && setDocToDelete(null)}
+          />
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-stone-200 animate-slide-up">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 mb-4">
+              <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <line x1="10" y1="11" x2="10" y2="17" />
+                <line x1="14" y1="11" x2="14" y2="17" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-stone-900">Delete research paper</h3>
+            <p className="mt-2 text-sm text-stone-600">
+              Are you sure you want to delete <span className="font-semibold text-stone-800">"{docToDelete.filename}"</span>?
+              This will permanently remove the paper, its vector embeddings, and cached summary.
+            </p>
+
+            {deleteError && (
+              <div className="mt-3 p-3 rounded-lg bg-error-light border border-error/20 text-xs text-error">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => setDocToDelete(null)}
+                className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => void confirmDelete()}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {deleting ? "Deleting…" : "Delete paper"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }
