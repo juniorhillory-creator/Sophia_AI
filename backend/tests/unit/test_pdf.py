@@ -33,3 +33,21 @@ def test_rejects_password_protected_pdf() -> None:
         extract_pages(build_encrypted_pdf("hidden finding", "secret"))
     assert caught.value.code == "invalid_pdf"
     assert caught.value.status_code == 400
+
+
+def test_uses_vision_transcriber_for_scanned_pages() -> None:
+    calls = []
+
+    def mock_transcribe(image_bytes: bytes) -> str:
+        calls.append(image_bytes)
+        return "Transcribed OCR text from page image"
+
+    pages = extract_pages(
+        build_pdf(["", "   "]),
+        vision_transcriber=mock_transcribe,
+    )
+
+    assert len(calls) == 2
+    assert [page.page_number for page in pages] == [1, 2]
+    assert pages[0].text == "Transcribed OCR text from page image"
+    assert pages[1].text == "Transcribed OCR text from page image"

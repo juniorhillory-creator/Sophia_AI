@@ -43,15 +43,17 @@ class IngestionService:
         sessions: SessionStore,
         index_chunks: Callable[[list[Chunk]], None] | None = None,
         user_id: UUID | None = None,
+        vision_transcriber: Callable[[bytes], str] | None = None,
     ) -> None:
         self._settings = settings
         self._sessions = sessions
         self._index_chunks = index_chunks
         self._user_id = user_id
+        self._vision_transcriber = vision_transcriber
 
     async def ingest(self, filename: str | None, content_type: str | None, data: bytes) -> Document:
         safe_name = validate_declared_file(filename, content_type)
-        pages = extract_pages(data)
+        pages = extract_pages(data, vision_transcriber=self._vision_transcriber)
         document_id = uuid4()
         chunks = chunk_pages(
             document_id,
