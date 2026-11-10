@@ -55,7 +55,11 @@ class Settings(BaseSettings):
     chunk_size: int = 1200
     chunk_overlap: int = 150
     cors_origins: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["http://localhost:5173", "http://localhost:5174"]
+        default_factory=lambda: [
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "https://sophia-ai-kappa.vercel.app",
+        ]
     )
     log_level: str = "INFO"
     gemini_api_key: str = ""

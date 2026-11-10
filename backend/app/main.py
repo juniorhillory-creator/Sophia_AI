@@ -92,11 +92,17 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=resolved.cors_origins,
+        allow_origin_regex=r"^https://.*\.vercel\.app$",
         allow_credentials=True,
         allow_methods=["GET", "POST", "DELETE", "OPTIONS", "PATCH", "PUT"],
         allow_headers=["*"],
     )
     register_error_handlers(app)
+
+    @app.get("/", tags=["root"])
+    async def root():
+        return {"status": "ok", "app": "Sophia AI"}
+
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(documents_router)
