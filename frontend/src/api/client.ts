@@ -57,7 +57,9 @@ export function rejectUpload(file: File): string | null {
 }
 
 export function errorMessage(error: unknown): string {
-  return error instanceof ApiError ? error.message : "Something went wrong.";
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof TypeError) return "Could not reach the server.";
+  return "Something went wrong.";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
