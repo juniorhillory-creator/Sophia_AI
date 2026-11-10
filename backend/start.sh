@@ -25,7 +25,7 @@ with open('keys/public.pem', 'wb') as f:
     echo "RSA keypair generated."
 fi
 
-# Start FastAPI on port $PORT or 8000
-PORT="${PORT:-8000}"
+# Start FastAPI on port $PORT or 10000
+PORT="${PORT:-10000}"
 echo "Starting Sophia AI on port $PORT..."
 exec uvicorn app.main:create_app --factory --host 0.0.0.0 --port "$PORT"

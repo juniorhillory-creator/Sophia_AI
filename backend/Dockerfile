@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Setup runtime environment
 ENV PATH=/usr/local/bin:$PATH \
-    PORT=8000
+    PORT=10000
 
 WORKDIR /app
 
@@ -42,6 +42,6 @@ RUN mkdir -p /app/data/documents \
              /app/data/chroma \
     && chmod +x ./start.sh
 
-EXPOSE 8000
+EXPOSE 10000
 
-CMD ["./start.sh"]
+CMD ["bash", "start.sh"]
