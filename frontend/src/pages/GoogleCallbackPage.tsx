@@ -5,6 +5,23 @@ import { useAuth } from "../contexts/AuthContext";
 import { AuthLayout } from "../components/AuthLayout";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
+function parseJwt(token: string): any {
+  try {
+    const base64Url = token.split(".")[1];
+    if (!base64Url) return null;
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+}
+
 export function GoogleCallbackPage() {
   const navigate = useNavigate();
   const { setSession } = useAuth();
@@ -16,6 +33,20 @@ export function GoogleCallbackPage() {
     // 1. Extract params from both search query and hash fragment
     const searchParams = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+
+    let hashAccessToken = hashParams.get("access_token") || searchParams.get("access_token");
+    let hashRefreshToken = hashParams.get("refresh_token") || searchParams.get("refresh_token") || "";
+
+    if (!hashAccessToken && window.location.hash.includes("access_token=")) {
+      const match = window.location.hash.match(/access_token=([^&]+)/);
+      if (match) {
+        hashAccessToken = decodeURIComponent(match[1]);
+      }
+      const refreshMatch = window.location.hash.match(/refresh_token=([^&]+)/);
+      if (refreshMatch) {
+        hashRefreshToken = decodeURIComponent(refreshMatch[1]);
+      }
+    }
 
     const errorParam = searchParams.get("error") || hashParams.get("error");
     const errorDescription =
@@ -55,8 +86,8 @@ export function GoogleCallbackPage() {
           id: sbUser.id,
           username: sbUser.user_metadata?.username || sbUser.email?.split("@")[0] || "user",
           email: sbUser.email || "",
-          full_name: sbUser.user_metadata?.full_name || null,
-          avatar_url: sbUser.user_metadata?.avatar_url || null,
+          full_name: sbUser.user_metadata?.full_name || sbUser.user_metadata?.name || null,
+          avatar_url: sbUser.user_metadata?.avatar_url || sbUser.user_metadata?.picture || null,
           is_active: true,
           is_verified: true,
           created_at: now,
@@ -65,6 +96,43 @@ export function GoogleCallbackPage() {
       );
       window.location.replace("/dashboard");
     };
+
+    // 2. Direct token extraction from URL hash: if hashAccessToken exists, sign in immediately!
+    if (hashAccessToken) {
+      const payload = parseJwt(hashAccessToken);
+      if (payload?.sub || payload?.email) {
+        const now = new Date().toISOString();
+        const user = {
+          id: payload.sub || "user",
+          username:
+            payload.user_metadata?.username ||
+            payload.user_metadata?.name?.replace(/\s+/g, "_").toLowerCase() ||
+            payload.email?.split("@")[0] ||
+            "user",
+          email: payload.email || "",
+          full_name: payload.user_metadata?.full_name || payload.user_metadata?.name || null,
+          avatar_url: payload.user_metadata?.avatar_url || payload.user_metadata?.picture || null,
+          is_active: true,
+          is_verified: true,
+          created_at: now,
+          updated_at: now,
+        };
+
+        if (isSupabaseConfigured && hashRefreshToken) {
+          void supabase.auth.setSession({
+            access_token: hashAccessToken,
+            refresh_token: hashRefreshToken,
+          }).catch(() => {});
+        }
+
+        handleSessionSuccess({
+          access_token: hashAccessToken,
+          refresh_token: hashRefreshToken,
+          user,
+        });
+        return;
+      }
+    }
 
     if (!isSupabaseConfigured) {
       // Direct backend OAuth fallback if Supabase is not configured
@@ -88,7 +156,7 @@ export function GoogleCallbackPage() {
       return;
     }
 
-    // 2. Set up Supabase auth state change listener to catch token events
+    // 3. Set up Supabase auth state change listener to catch token events
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
@@ -100,7 +168,7 @@ export function GoogleCallbackPage() {
     let timeoutId: number | undefined;
 
     void (async () => {
-      // 3. Check if session is already stored or detected in URL
+      // 4. Check if session is already stored or detected in URL
       try {
         const { data } = await supabase.auth.getSession();
         if (data?.session?.user) {
@@ -109,40 +177,6 @@ export function GoogleCallbackPage() {
         }
       } catch (err) {
         console.warn("getSession error:", err);
-      }
-
-      // 4. Check for hash parameters (implicit flow: #access_token=...&refresh_token=...)
-      const hashAccessToken = hashParams.get("access_token") || searchParams.get("access_token");
-      const hashRefreshToken = hashParams.get("refresh_token") || searchParams.get("refresh_token") || "";
-
-      if (hashAccessToken) {
-        try {
-          const { data, error: setErr } = await supabase.auth.setSession({
-            access_token: hashAccessToken,
-            refresh_token: hashRefreshToken,
-          });
-          if (data?.session?.user) {
-            handleSessionSuccess(data.session);
-            return;
-          }
-        } catch (setErr) {
-          console.warn("setSession error from hash params:", setErr);
-        }
-
-        // Fallback: verify token directly to get user
-        try {
-          const { data: userData } = await supabase.auth.getUser(hashAccessToken);
-          if (userData?.user) {
-            handleSessionSuccess({
-              access_token: hashAccessToken,
-              refresh_token: hashRefreshToken,
-              user: userData.user,
-            });
-            return;
-          }
-        } catch (userErr) {
-          console.warn("getUser error from hash token:", userErr);
-        }
       }
 
       // 5. Check query parameters for authorization code (PKCE flow)
