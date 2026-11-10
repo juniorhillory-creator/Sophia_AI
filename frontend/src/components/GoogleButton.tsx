@@ -2,9 +2,11 @@ interface GoogleButtonProps {
   onClick: () => void;
   disabled?: boolean;
   label?: string;
+  text?: string;
 }
 
-export function GoogleButton({ onClick, disabled = false, label = "Continue with Google" }: GoogleButtonProps) {
+export function GoogleButton({ onClick, disabled = false, label, text }: GoogleButtonProps) {
+  const displayLabel = text || label || "Continue with Google";
   return (
     <button
       type="button"
@@ -30,7 +32,7 @@ export function GoogleButton({ onClick, disabled = false, label = "Continue with
           d="M12 5.38c1.61 0 3.09.39 4.43 1.16h2.97c-.61-2.28-1.97-4-3.78-4.91C14.41 3.14 13.23 3 12 3c-3.53 0-6.55 2.26-7.31 5.48h2.98c.36-.88 1-1.53 1.83-1.89 1.38-.61 2.97-.96 4.66-.96zM12 19.06c-1.69 0-3.2-.6-4.38-1.64H2.13v1.75h3.65c1.07 1.29 2.35 2.12 3.81 2.35v-2.46h2.66v2.46c1.46-.23 2.74-1.06 3.74-2.35h3.7v-1.75H12z"
         />
       </svg>
-      {label}
+      {displayLabel}
     </button>
   );
 }
