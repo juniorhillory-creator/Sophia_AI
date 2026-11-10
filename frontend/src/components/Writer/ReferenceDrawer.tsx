@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Document, PaperSummary, SourceCitation } from "../../api/types";
-import { askQuestion, createSummary, errorMessage, getSummary } from "../../api/client";
+import { ApiError, askQuestion, createSummary, errorMessage, getSummary } from "../../api/client";
 
 interface ReferenceDrawerProps {
   documents: Document[];
@@ -19,6 +19,7 @@ export function ReferenceDrawer({
   const [summary, setSummary] = useState<PaperSummary | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Q&A state
   const [question, setQuestion] = useState("");
@@ -28,37 +29,51 @@ export function ReferenceDrawer({
   const [qaError, setQaError] = useState<string | null>(null);
 
   // Load summary whenever document is selected
-  const handleLoadSummary = async (docId: string) => {
+  useEffect(() => {
+    if (!selectedDocumentId) {
+      setSummary(null);
+      setSummaryError(null);
+      setLoadingSummary(false);
+      return;
+    }
+
+    const controller = new AbortController();
     setLoadingSummary(true);
     setSummaryError(null);
-    try {
+
+    void (async () => {
       try {
-        const cached = await getSummary(docId);
-        setSummary(cached);
-      } catch (err: any) {
-        if (err.status === 409) {
-          const fresh = await createSummary(docId);
-          setSummary(fresh);
-        } else {
-          throw err;
+        try {
+          const cached = await getSummary(selectedDocumentId, controller.signal);
+          setSummary(cached);
+        } catch (err: unknown) {
+          if (err instanceof DOMException && err.name === "AbortError") return;
+          if (err instanceof Error && err.name === "AbortError") return;
+          if (err instanceof ApiError && (err.status === 409 || err.status === 404)) {
+            const fresh = await createSummary(selectedDocumentId, controller.signal);
+            setSummary(fresh);
+          } else {
+            throw err;
+          }
         }
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (err instanceof Error && err.name === "AbortError") return;
+        setSummaryError(errorMessage(err));
+      } finally {
+        setLoadingSummary(false);
       }
-    } catch (err) {
-      setSummaryError(errorMessage(err));
-    } finally {
-      setLoadingSummary(false);
-    }
-  };
+    })();
+
+    return () => {
+      controller.abort();
+    };
+  }, [selectedDocumentId, retryCount]);
 
   const handleDocumentChange = (id: string) => {
     onSelectDocument(id);
     setQaAnswer(null);
     setQaSources([]);
-    if (id) {
-      void handleLoadSummary(id);
-    } else {
-      setSummary(null);
-    }
   };
 
   const handleAskQuestion = async (e: React.FormEvent) => {
@@ -95,18 +110,30 @@ export function ReferenceDrawer({
           </span>
         </div>
 
-        <select
-          value={selectedDocumentId || ""}
-          onChange={(e) => handleDocumentChange(e.target.value)}
-          className="w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs text-stone-800 shadow-xs focus:border-brand focus:ring-1 focus:ring-brand"
-        >
-          <option value="">— Select a paper to cite —</option>
-          {documents.map((doc) => (
-            <option key={doc.id} value={doc.id}>
-              {doc.filename} ({doc.page_count} pages)
-            </option>
-          ))}
-        </select>
+        {documents.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-stone-300 bg-stone-100/50 p-2.5 text-center">
+            <p className="text-[11px] text-stone-500">No research papers uploaded yet.</p>
+            <a
+              href="/workspace"
+              className="mt-1 inline-block text-[11px] font-semibold text-brand hover:underline"
+            >
+              + Upload a paper in Workspace
+            </a>
+          </div>
+        ) : (
+          <select
+            value={selectedDocumentId || ""}
+            onChange={(e) => handleDocumentChange(e.target.value)}
+            className="w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs text-stone-800 shadow-xs focus:border-brand focus:ring-1 focus:ring-brand"
+          >
+            <option value="">— Select a paper to cite —</option>
+            {documents.map((doc) => (
+              <option key={doc.id} value={doc.id}>
+                {doc.filename} ({doc.page_count} pages)
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Tabs */}
@@ -153,7 +180,7 @@ export function ReferenceDrawer({
               <p>{summaryError}</p>
               <button
                 type="button"
-                onClick={() => handleLoadSummary(selectedDocumentId)}
+                onClick={() => setRetryCount((prev) => prev + 1)}
                 className="mt-2 text-xs font-semibold text-brand underline"
               >
                 Retry

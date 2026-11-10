@@ -19,6 +19,7 @@ export const API_BASE = rawBase.endsWith("/api/v1")
   : rawBase;
 
 let authToken: string | null = null;
+let refreshTokenValue: string | null = null;
 
 export function setAuthToken(token: string | null): void {
   authToken = token;
@@ -26,6 +27,76 @@ export function setAuthToken(token: string | null): void {
 
 export function getAuthToken(): string | null {
   return authToken;
+}
+
+export function setRefreshToken(token: string | null): void {
+  refreshTokenValue = token;
+}
+
+export function getRefreshToken(): string | null {
+  return refreshTokenValue;
+}
+
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefreshToken(): Promise<boolean> {
+  if (!refreshTokenValue) return false;
+  if (isRefreshing && refreshPromise) return refreshPromise;
+
+  isRefreshing = true;
+  refreshPromise = (async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refreshTokenValue }),
+      });
+      if (!response.ok) return false;
+      const data = await response.json();
+      authToken = data.access_token;
+      refreshTokenValue = data.refresh_token;
+      try {
+        const stored = sessionStorage.getItem("sophia_auth");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          parsed.accessToken = data.access_token;
+          parsed.refreshToken = data.refresh_token;
+          sessionStorage.setItem("sophia_auth", JSON.stringify(parsed));
+        }
+      } catch {}
+      return true;
+    } catch {
+      return false;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
+    }
+  })();
+  return refreshPromise;
+}
+
+export async function fetchWithAuth(
+  url: string,
+  options: RequestInit = {},
+): Promise<Response> {
+  const headers = new Headers(options.headers);
+  if (authToken) {
+    headers.set("Authorization", `Bearer ${authToken}`);
+  }
+
+  let response = await fetch(url, { ...options, headers });
+
+  if (response.status === 401 && refreshTokenValue) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      const retryHeaders = new Headers(options.headers);
+      retryHeaders.set("Authorization", `Bearer ${authToken}`);
+      response = await fetch(url, { ...options, headers: retryHeaders });
+    }
+  }
+
+  return response;
 }
 
 function authHeaders(extra: HeadersInit = {}): HeadersInit {
@@ -162,6 +233,10 @@ export function uploadDocument(
       } catch {
         payload = null;
       }
+      if (xhr.status === 401) {
+        reject(new ApiError(401, "unauthorized", "Session expired. Please sign in again or retry upload."));
+        return;
+      }
       if (xhr.status < 200 || xhr.status >= 300) {
         reject(toApiError(xhr.status, payload));
         return;
@@ -181,9 +256,8 @@ export function uploadDocument(
 }
 
 export async function createSummary(documentId: string, signal?: AbortSignal): Promise<PaperSummary> {
-  const response = await fetch(`${API_BASE}/api/v1/documents/${documentId}/summary`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/v1/documents/${documentId}/summary`, {
     method: "POST",
-    headers: authHeaders(),
     signal,
   });
   const payload = await readJson(response);
@@ -195,8 +269,7 @@ export async function createSummary(documentId: string, signal?: AbortSignal): P
 }
 
 export async function getSummary(documentId: string, signal?: AbortSignal): Promise<PaperSummary> {
-  const response = await fetch(`${API_BASE}/api/v1/documents/${documentId}/summary`, {
-    headers: authHeaders(),
+  const response = await fetchWithAuth(`${API_BASE}/api/v1/documents/${documentId}/summary`, {
     signal,
   });
   const payload = await readJson(response);
@@ -208,9 +281,9 @@ export async function getSummary(documentId: string, signal?: AbortSignal): Prom
 }
 
 export async function askQuestion(documentId: string, question: string): Promise<ChatResponse> {
-  const response = await fetch(`${API_BASE}/api/v1/documents/${documentId}/questions`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/v1/documents/${documentId}/questions`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question } satisfies { question: string }),
   });
   const payload = await readJson(response);
@@ -232,11 +305,11 @@ export async function* askQuestionStream(
   question: string,
   signal?: AbortSignal,
 ): AsyncGenerator<SSEChunk, void, unknown> {
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE}/api/v1/documents/${documentId}/questions/stream?question=${encodeURIComponent(question)}`,
     {
       method: "GET",
-      headers: authHeaders({ Accept: "text/event-stream" }),
+      headers: { Accept: "text/event-stream" },
       signal,
     },
   );
@@ -284,9 +357,7 @@ export async function* askQuestionStream(
 }
 
 export async function fetchDocument(documentId: string): Promise<Document> {
-  const response = await fetch(`${API_BASE}/api/v1/documents/${documentId}`, {
-    headers: authHeaders(),
-  });
+  const response = await fetchWithAuth(`${API_BASE}/api/v1/documents/${documentId}`);
   const payload = await readJson(response);
   if (!response.ok) throw toApiError(response.status, payload);
   if (!isDocument(payload)) {
@@ -296,9 +367,7 @@ export async function fetchDocument(documentId: string): Promise<Document> {
 }
 
 export async function fetchDocuments(limit = 50, offset = 0): Promise<Document[]> {
-  const response = await fetch(`${API_BASE}/api/v1/documents?limit=${limit}&offset=${offset}`, {
-    headers: authHeaders(),
-  });
+  const response = await fetchWithAuth(`${API_BASE}/api/v1/documents?limit=${limit}&offset=${offset}`);
   const payload = await readJson(response);
   if (!response.ok) throw toApiError(response.status, payload);
   if (!Array.isArray(payload)) {
@@ -308,9 +377,7 @@ export async function fetchDocuments(limit = 50, offset = 0): Promise<Document[]
 }
 
 export async function fetchDocumentFile(documentId: string): Promise<Blob> {
-  const response = await fetch(`${API_BASE}/api/v1/documents/${documentId}/file`, {
-    headers: authHeaders(),
-  });
+  const response = await fetchWithAuth(`${API_BASE}/api/v1/documents/${documentId}/file`);
   if (!response.ok) {
     const payload = await readJson(response);
     throw toApiError(response.status, payload);
@@ -319,9 +386,8 @@ export async function fetchDocumentFile(documentId: string): Promise<Blob> {
 }
 
 export async function deleteDocument(documentId: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/v1/documents/${documentId}`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/v1/documents/${documentId}`, {
     method: "DELETE",
-    headers: authHeaders(),
   });
   if (!response.ok) {
     const payload = await readJson(response);
@@ -330,9 +396,7 @@ export async function deleteDocument(documentId: string): Promise<void> {
 }
 
 export async function fetchManuscripts(): Promise<Manuscript[]> {
-  const response = await fetch(`${API_BASE}/api/v1/manuscripts`, {
-    headers: authHeaders(),
-  });
+  const response = await fetchWithAuth(`${API_BASE}/api/v1/manuscripts`);
   if (!response.ok) {
     const payload = await readJson(response);
     throw toApiError(response.status, payload);
@@ -341,9 +405,7 @@ export async function fetchManuscripts(): Promise<Manuscript[]> {
 }
 
 export async function fetchManuscript(manuscriptId: string): Promise<Manuscript> {
-  const response = await fetch(`${API_BASE}/api/v1/manuscripts/${manuscriptId}`, {
-    headers: authHeaders(),
-  });
+  const response = await fetchWithAuth(`${API_BASE}/api/v1/manuscripts/${manuscriptId}`);
   if (!response.ok) {
     const payload = await readJson(response);
     throw toApiError(response.status, payload);
@@ -352,9 +414,9 @@ export async function fetchManuscript(manuscriptId: string): Promise<Manuscript>
 }
 
 export async function createManuscript(payload: ManuscriptCreate): Promise<Manuscript> {
-  const response = await fetch(`${API_BASE}/api/v1/manuscripts`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/v1/manuscripts`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
@@ -368,9 +430,9 @@ export async function updateManuscript(
   manuscriptId: string,
   payload: ManuscriptUpdate,
 ): Promise<Manuscript> {
-  const response = await fetch(`${API_BASE}/api/v1/manuscripts/${manuscriptId}`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/v1/manuscripts/${manuscriptId}`, {
     method: "PUT",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
@@ -381,9 +443,8 @@ export async function updateManuscript(
 }
 
 export async function deleteManuscript(manuscriptId: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/v1/manuscripts/${manuscriptId}`, {
+  const response = await fetchWithAuth(`${API_BASE}/api/v1/manuscripts/${manuscriptId}`, {
     method: "DELETE",
-    headers: authHeaders(),
   });
   if (!response.ok) {
     const payload = await readJson(response);

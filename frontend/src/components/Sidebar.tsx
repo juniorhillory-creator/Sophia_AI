@@ -110,7 +110,11 @@ export function Sidebar({
   ];
 
   const initial = (
-    user?.full_name ? user.full_name.charAt(0) : user?.email ? user.email.charAt(0) : "K"
+    user?.full_name
+      ? user.full_name.charAt(0)
+      : user?.email
+        ? user.email.charAt(0)
+        : "K"
   ).toUpperCase();
 
   const displayName =

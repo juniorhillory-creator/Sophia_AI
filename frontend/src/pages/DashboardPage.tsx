@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   uploadDocument,
@@ -8,7 +8,8 @@ import {
   deleteDocument,
 } from "../api/client";
 import type { Document } from "../api/types";
-import { Sidebar } from "../components/Sidebar";
+import { AppLayout } from "../components/Navigation/AppLayout";
+import { EmptyState } from "../components/EmptyState";
 
 export function DashboardPage({
   initialDocument,
@@ -16,72 +17,36 @@ export function DashboardPage({
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [collapsed, setCollapsed] = useState(false);
   const [documents, setDocuments] = useState<Document[]>(
     initialDocument ? [initialDocument] : [],
   );
   const [loadingDocs, setLoadingDocs] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [docToDelete, setDocToDelete] = useState<{ id: string; filename: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const loadDocuments = useCallback(async () => {
+    setLoadingDocs(true);
+    setLoadError(null);
+    try {
+      const list = await fetchDocuments();
+      setDocuments(list || []);
+    } catch (err) {
+      setDocuments([]);
+      setLoadError(errorMessage(err));
+    } finally {
+      setLoadingDocs(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const list = await fetchDocuments();
-        if (active) {
-          if (list && list.length > 0) {
-            setDocuments(list);
-          } else {
-            // Seed with sample documents matching reference preview if empty
-            setDocuments([
-              {
-                id: "sample-1",
-                filename: "9781807786076.pdf",
-                page_count: 178,
-                chunk_count: 264,
-                created_at: new Date().toISOString(),
-              },
-              {
-                id: "sample-2",
-                filename: "9781807786076.pdf",
-                page_count: 178,
-                chunk_count: 264,
-                created_at: new Date().toISOString(),
-              },
-            ]);
-          }
-        }
-      } catch {
-        if (active) {
-          // Graceful fallback for preview when backend is spun down
-          setDocuments([
-            {
-              id: "sample-1",
-              filename: "9781807786076.pdf",
-              page_count: 178,
-              chunk_count: 264,
-              created_at: new Date().toISOString(),
-            },
-            {
-              id: "sample-2",
-              filename: "9781807786076.pdf",
-              page_count: 178,
-              chunk_count: 264,
-              created_at: new Date().toISOString(),
-            },
-          ]);
-        }
-      } finally {
-        if (active) setLoadingDocs(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
+    void loadDocuments();
+  }, [loadDocuments]);
 
   const handleFileUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -101,10 +66,7 @@ export function DashboardPage({
         const percent = total > 0 ? Math.round((loaded / total) * 100) : 0;
         setUploadPercent(percent >= 100 ? null : percent);
       });
-      setDocuments((prev) => [
-        doc,
-        ...prev.filter((d) => !d.id.startsWith("sample-")),
-      ]);
+      setDocuments((prev) => [doc, ...prev]);
       navigate(`/workspace/${doc.id}`, { state: { document: doc, file } });
     } catch (err) {
       setUploadError(errorMessage(err));
@@ -115,23 +77,18 @@ export function DashboardPage({
     }
   };
 
-  const handleDelete = async (docId: string, filename: string) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to delete "${filename}"? This will remove its vectors and summary permanently.`,
-      )
-    ) {
-      return;
-    }
-    if (docId.startsWith("sample-")) {
-      setDocuments((prev) => prev.filter((d) => d.id !== docId));
-      return;
-    }
+  const confirmDelete = async () => {
+    if (!docToDelete) return;
+    setDeleting(true);
+    setDeleteError(null);
     try {
-      await deleteDocument(docId);
-      setDocuments((prev) => prev.filter((d) => d.id !== docId));
+      await deleteDocument(docToDelete.id);
+      setDocuments((prev) => prev.filter((d) => d.id !== docToDelete.id));
+      setDocToDelete(null);
     } catch (err) {
-      alert(`Failed to delete document: ${errorMessage(err)}`);
+      setDeleteError(errorMessage(err));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -156,20 +113,8 @@ export function DashboardPage({
   };
 
   return (
-    <div className="flex min-h-screen bg-stone-50/50 font-sans antialiased text-gray-900">
-      {/* 1. Fixed Sidebar */}
-      <Sidebar
-        collapsed={collapsed}
-        setCollapsed={setCollapsed}
-        activePath="/papers"
-      />
-
-      {/* 2. Main Content Area */}
-      <main
-        className={`flex-1 min-w-0 transition-all duration-200 ease-in-out ${
-          collapsed ? "ml-16" : "ml-64"
-        }`}
-      >
+    <AppLayout>
+      <main className="flex-1 min-w-0 overflow-y-auto bg-stone-50/50">
         <div className="max-w-7xl mx-auto px-6 py-8 sm:px-10 lg:px-12">
           {/* Hidden File Input for Upload */}
           <input
@@ -233,200 +178,305 @@ export function DashboardPage({
             </div>
           )}
 
+          {/* Load Error Banner if any */}
+          {loadError && (
+            <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="h-4 w-4 text-amber-600 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                </svg>
+                <span>Failed to load papers: {loadError}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => void loadDocuments()}
+                  className="text-xs font-semibold text-amber-900 underline hover:text-amber-950 cursor-pointer"
+                >
+                  Retry
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLoadError(null)}
+                  className="text-amber-600 hover:text-amber-900 text-xs font-semibold cursor-pointer"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* 3. Statistics Cards Grid (3 Columns) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 my-6">
             {/* Card 1: Total Papers */}
-            <div className="bg-white border border-gray-200/90 rounded-2xl p-6 shadow-xs">
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-xs">
+              <span className="text-xs font-semibold text-stone-400 uppercase tracking-wider block">
                 TOTAL PAPERS
               </span>
-              <span className="text-3xl font-bold text-gray-900 mt-2 block tracking-tight">
+              <span className="text-3xl font-bold text-stone-900 mt-2 block tracking-tight">
                 {documents.length}
               </span>
             </div>
 
             {/* Card 2: Total Pages Indexed */}
-            <div className="bg-white border border-gray-200/90 rounded-2xl p-6 shadow-xs">
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-xs">
+              <span className="text-xs font-semibold text-stone-400 uppercase tracking-wider block">
                 TOTAL PAGES INDEXED
               </span>
-              <span className="text-3xl font-bold text-gray-900 mt-2 block tracking-tight">
-                {totalPages || 356}
+              <span className="text-3xl font-bold text-stone-900 mt-2 block tracking-tight">
+                {totalPages}
               </span>
             </div>
 
             {/* Card 3: Grounded Citations */}
-            <div className="bg-white border border-gray-200/90 rounded-2xl p-6 shadow-xs">
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-xs">
+              <span className="text-xs font-semibold text-stone-400 uppercase tracking-wider block">
                 GROUNDED CITATIONS
               </span>
-              <span className="text-3xl font-bold text-emerald-500 mt-2 block tracking-tight">
-                100%
+              <span className="text-3xl font-bold text-emerald-600 mt-2 block tracking-tight">
+                {documents.length > 0 ? "100%" : "0%"}
               </span>
             </div>
           </div>
 
-          {/* 4. Full-Width Search Bar */}
-          <div className="relative w-full mb-6">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-              <svg
-                className="h-4 w-4 text-gray-400"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
+          {/* 4. Empty state or Document Library */}
+          {!loadingDocs && documents.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-stone-200 p-8 sm:p-12 shadow-xs my-6">
+              <EmptyState
+                title="No research papers in your library"
+                description="Upload your research papers in PDF format to index them for AI summarization, citation discovery, and writing."
+                actionLabel={uploading ? "Uploading…" : "Upload your first paper"}
+                onAction={() => fileInputRef.current?.click()}
+              />
             </div>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search papers by filename..."
-              className="w-full rounded-full border border-gray-200 bg-white py-2.5 pl-11 pr-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 shadow-2xs transition-colors"
-            />
-          </div>
+          ) : (
+            <>
+              {/* Search Bar */}
+              <div className="relative w-full mb-6">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+                  <svg
+                    className="h-4 w-4 text-stone-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search papers by filename..."
+                  className="w-full rounded-full border border-stone-200 bg-white py-2.5 pl-11 pr-4 text-sm text-stone-900 placeholder:text-stone-400 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand shadow-2xs transition-colors"
+                />
+              </div>
 
-          {/* 5. Document List Table */}
-          <div className="w-full overflow-x-auto bg-transparent">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-gray-200 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                  <th className="pb-4 font-semibold w-[36%]">RESEARCH PAPER</th>
-                  <th className="pb-4 font-semibold">PAGES</th>
-                  <th className="pb-4 font-semibold">CHUNKS</th>
-                  <th className="pb-4 font-semibold">STATUS</th>
-                  <th className="pb-4 font-semibold">ADDED</th>
-                  <th className="pb-4 font-semibold text-right pr-2">
-                    ACTIONS
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-150/80">
-                {loadingDocs ? (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="py-8 text-center text-sm text-gray-500"
-                    >
-                      Loading papers…
-                    </td>
-                  </tr>
-                ) : filteredDocs.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="py-8 text-center text-sm text-gray-500"
-                    >
-                      No research papers found. Upload your first PDF to get
-                      started!
-                    </td>
-                  </tr>
-                ) : (
-                  filteredDocs.map((doc) => (
-                    <tr
-                      key={doc.id}
-                      className="hover:bg-gray-50/60 transition-colors"
-                    >
-                      {/* Document Name with Red PDF icon */}
-                      <td className="py-4.5 pr-4">
-                        <div className="flex items-center gap-3">
-                          <svg
-                            className="w-5 h-5 text-red-500 shrink-0"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.75"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                            <polyline points="14 2 14 8 20 8" />
-                          </svg>
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/workspace/${doc.id}`)}
-                            className="text-sm font-medium text-gray-900 hover:text-orange-600 transition-colors truncate max-w-sm text-left"
-                            title={doc.filename}
-                          >
-                            {doc.filename}
-                          </button>
-                        </div>
-                      </td>
-
-                      {/* Pages Column */}
-                      <td className="py-4.5 text-sm text-gray-500 font-normal">
-                        {doc.page_count ?? 1}
-                      </td>
-
-                      {/* Chunks Column */}
-                      <td className="py-4.5 text-sm text-gray-500 font-normal">
-                        {doc.chunk_count ?? 1}
-                      </td>
-
-                      {/* Status Column with green pill badge */}
-                      <td className="py-4.5">
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-600">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          Ready
-                        </span>
-                      </td>
-
-                      {/* Added Column */}
-                      <td className="py-4.5 text-sm text-gray-500 font-normal">
-                        {formatDate(doc.created_at)}
-                      </td>
-
-                      {/* Actions Column */}
-                      <td className="py-4.5 text-right">
-                        <div className="flex items-center justify-end gap-2.5">
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/workspace/${doc.id}`)}
-                            className="rounded-lg border border-gray-200 bg-white px-3.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors shadow-2xs"
-                          >
-                            Workspace
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/writer/${doc.id}`)}
-                            className="rounded-lg border border-orange-200 bg-orange-50/50 px-3.5 py-1 text-xs font-medium text-orange-600 hover:bg-orange-50 hover:border-orange-300 transition-colors shadow-2xs"
-                          >
-                            AI Writer
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(doc.id, doc.filename)}
-                            className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                            title="Delete paper"
-                          >
-                            <svg
-                              className="w-4 h-4"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.75"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <polyline points="3 6 5 6 21 6" />
-                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
+              {/* Document List Table */}
+              <div className="w-full overflow-x-auto bg-transparent">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-stone-200 text-xs font-semibold text-stone-400 uppercase tracking-wider">
+                      <th className="pb-4 font-semibold w-[36%]">RESEARCH PAPER</th>
+                      <th className="pb-4 font-semibold">PAGES</th>
+                      <th className="pb-4 font-semibold">CHUNKS</th>
+                      <th className="pb-4 font-semibold">STATUS</th>
+                      <th className="pb-4 font-semibold">ADDED</th>
+                      <th className="pb-4 font-semibold text-right pr-2">
+                        ACTIONS
+                      </th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {loadingDocs ? (
+                      Array.from({ length: 3 }).map((_, i) => (
+                        <tr key={i} className="animate-pulse">
+                          <td className="py-4.5 pr-4">
+                            <div className="flex items-center gap-3">
+                              <div className="h-5 w-5 rounded bg-stone-200 shrink-0" />
+                              <div className="h-4 w-44 rounded bg-stone-200" />
+                            </div>
+                          </td>
+                          <td className="py-4.5"><div className="h-4 w-8 rounded bg-stone-200" /></td>
+                          <td className="py-4.5"><div className="h-4 w-8 rounded bg-stone-200" /></td>
+                          <td className="py-4.5"><div className="h-5 w-16 rounded-full bg-stone-200" /></td>
+                          <td className="py-4.5"><div className="h-4 w-20 rounded bg-stone-200" /></td>
+                          <td className="py-4.5 text-right"><div className="ml-auto h-7 w-36 rounded-lg bg-stone-200" /></td>
+                        </tr>
+                      ))
+                    ) : filteredDocs.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="py-12 text-center text-sm text-stone-500"
+                        >
+                          <p className="font-medium text-stone-700">No papers match your search for "{search}"</p>
+                          <button
+                            type="button"
+                            onClick={() => setSearch("")}
+                            className="mt-2 text-xs font-semibold text-brand hover:underline cursor-pointer"
+                          >
+                            Clear search filter
+                          </button>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredDocs.map((doc) => (
+                        <tr
+                          key={doc.id}
+                          className="hover:bg-stone-50/80 transition-colors"
+                        >
+                          {/* Document Name with Red PDF icon */}
+                          <td className="py-4.5 pr-4">
+                            <div className="flex items-center gap-3">
+                              <svg
+                                className="w-5 h-5 text-red-500 shrink-0"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.75"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                              </svg>
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/workspace/${doc.id}`)}
+                                className="text-sm font-medium text-stone-900 hover:text-brand transition-colors truncate max-w-sm text-left cursor-pointer"
+                                title={doc.filename}
+                              >
+                                {doc.filename}
+                              </button>
+                            </div>
+                          </td>
+
+                          {/* Pages Column */}
+                          <td className="py-4.5 text-sm text-stone-500 font-normal">
+                            {doc.page_count ?? 1}
+                          </td>
+
+                          {/* Chunks Column */}
+                          <td className="py-4.5 text-sm text-stone-500 font-normal">
+                            {doc.chunk_count ?? 1}
+                          </td>
+
+                          {/* Status Column with green pill badge */}
+                          <td className="py-4.5">
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                              Ready
+                            </span>
+                          </td>
+
+                          {/* Added Column */}
+                          <td className="py-4.5 text-sm text-stone-500 font-normal">
+                            {formatDate(doc.created_at)}
+                          </td>
+
+                          {/* Actions Column */}
+                          <td className="py-4.5 text-right">
+                            <div className="flex items-center justify-end gap-2.5">
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/workspace/${doc.id}`)}
+                                className="rounded-lg border border-stone-200 bg-white px-3.5 py-1 text-xs font-medium text-stone-700 hover:bg-stone-50 hover:border-stone-300 transition-colors shadow-2xs cursor-pointer"
+                              >
+                                Workspace
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/writer/${doc.id}`)}
+                                className="rounded-lg border border-orange-200 bg-orange-50/60 px-3.5 py-1 text-xs font-medium text-brand hover:bg-brand-light hover:border-orange-300 transition-colors shadow-2xs cursor-pointer"
+                              >
+                                AI Writer
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDocToDelete({ id: doc.id, filename: doc.filename })}
+                                className="p-1 text-stone-400 hover:text-red-500 transition-colors cursor-pointer"
+                                title="Delete paper"
+                              >
+                                <svg
+                                  className="w-4 h-4"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.75"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <polyline points="3 6 5 6 21 6" />
+                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       </main>
-    </div>
+
+      {/* Delete Confirmation Modal */}
+      {docToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-stone-900/40 backdrop-blur-xs transition-opacity"
+            onClick={() => !deleting && setDocToDelete(null)}
+          />
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-stone-200 animate-slide-up">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 mb-4">
+              <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <line x1="10" y1="11" x2="10" y2="17" />
+                <line x1="14" y1="11" x2="14" y2="17" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-stone-900">Delete research paper</h3>
+            <p className="mt-2 text-sm text-stone-600">
+              Are you sure you want to delete <span className="font-semibold text-stone-800">"{docToDelete.filename}"</span>?
+              This will permanently remove the paper, its vector embeddings, and cached summary.
+            </p>
+
+            {deleteError && (
+              <div className="mt-3 p-3 rounded-lg bg-error-light border border-error/20 text-xs text-error">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => setDocToDelete(null)}
+                className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => void confirmDelete()}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {deleting ? "Deleting…" : "Delete paper"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </AppLayout>
   );
 }

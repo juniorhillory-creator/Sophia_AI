@@ -81,9 +81,33 @@ export function SummaryPanel({ documentId, filename }: SummaryPanelProps) {
 
   if (loading) {
     return (
-      <p className="text-sm text-stone-600" role="status">
-        Writing the summary. This can take a few minutes.
-      </p>
+      <div className="space-y-6 animate-fade-in py-2" role="status">
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-brand-light/60 border border-brand/20">
+          <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+          <div>
+            <p className="text-sm font-semibold text-brand">Generating structured paper summary…</p>
+            <p className="text-xs text-stone-500 mt-0.5">Synthesizing abstract, problem statement, methodology, key results, and conclusion.</p>
+          </div>
+        </div>
+
+        <div className="space-y-6 pt-2">
+          <div className="space-y-2">
+            <div className="h-6 w-3/4 bg-stone-200 rounded animate-pulse" />
+            <div className="h-4 w-1/3 bg-stone-200 rounded animate-pulse" />
+          </div>
+          <div className="border-t border-stone-200 pt-5 space-y-2.5">
+            <div className="h-4 w-28 bg-stone-200 rounded animate-pulse" />
+            <div className="h-4 w-full bg-stone-100 rounded animate-pulse" />
+            <div className="h-4 w-full bg-stone-100 rounded animate-pulse" />
+            <div className="h-4 w-4/5 bg-stone-100 rounded animate-pulse" />
+          </div>
+          <div className="border-t border-stone-200 pt-5 space-y-2.5">
+            <div className="h-4 w-32 bg-stone-200 rounded animate-pulse" />
+            <div className="h-4 w-full bg-stone-100 rounded animate-pulse" />
+            <div className="h-4 w-3/4 bg-stone-100 rounded animate-pulse" />
+          </div>
+        </div>
+      </div>
     );
   }
 

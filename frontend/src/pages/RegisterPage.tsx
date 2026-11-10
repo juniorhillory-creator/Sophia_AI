@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { AuthLayout } from "../components/AuthLayout";
 import { PasswordInput } from "../components/PasswordInput";
 import { GoogleButton } from "../components/GoogleButton";
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 const PASSWORD_REQUIREMENTS = [
   {
@@ -33,9 +34,12 @@ export function RegisterPage() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [googleError, setGoogleError] = useState<string | null>(null);
 
   const handleInputChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+    if (validationError) setValidationError(null);
+    if (error) clearError();
   };
 
   const validateForm = (): string | null => {
@@ -58,9 +62,10 @@ export function RegisterPage() {
     setSubmitting(true);
     clearError();
     setValidationError(null);
-    const validationError = validateForm();
-    if (validationError) {
-      setValidationError(validationError);
+    setGoogleError(null);
+    const valErr = validateForm();
+    if (valErr) {
+      setValidationError(valErr);
       setSubmitting(false);
       return;
     }
@@ -71,11 +76,33 @@ export function RegisterPage() {
         password: form.password,
         confirm_password: form.confirm_password,
       });
-      navigate("/");
+      navigate("/dashboard", { replace: true });
     } catch {
       // Error is set by AuthContext
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setGoogleError(null);
+    clearError();
+    if (isSupabaseConfigured) {
+      try {
+        const { error: sbError } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo: `${window.location.origin}/auth/google/callback`,
+          },
+        });
+        if (sbError) {
+          setGoogleError(`Google sign-in error: ${sbError.message}`);
+        }
+      } catch {
+        setGoogleError("Unable to initiate Google sign-in. Please try again or create an account with email.");
+      }
+    } else {
+      setGoogleError("Google OAuth is not configured on this environment. Please register with username/email and password.");
     }
   };
 
@@ -179,16 +206,27 @@ export function RegisterPage() {
             </ul>
           </div>
 
-          {(error || validationError) && (
-            <div className="p-3 rounded-lg bg-error-light border border-error/20 text-sm text-error">
-              {validationError || error}
+          {(error || validationError || googleError) && (
+            <div className="p-3 rounded-lg bg-error-light border border-error/20 text-sm text-error flex items-start justify-between gap-2">
+              <span>{validationError || error || googleError}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setValidationError(null);
+                  clearError();
+                  setGoogleError(null);
+                }}
+                className="text-error hover:text-red-800 text-xs font-semibold shrink-0"
+              >
+                Dismiss
+              </button>
             </div>
           )}
 
           <button
             type="submit"
             disabled={submitting || isLoading}
-            className="w-full py-2.5 text-base font-medium text-white bg-brand rounded-lg hover:bg-brand-dark transition-colors focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-2.5 text-base font-medium text-white bg-brand rounded-lg hover:bg-brand-dark transition-colors focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {submitting || isLoading ? "Creating account…" : "Create account"}
           </button>
@@ -197,25 +235,27 @@ export function RegisterPage() {
         <div className="mt-6">
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-stone-300"></span>
+              <span className="w-full border-t border-stone-200"></span>
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-stone-500">
+              <span className="bg-white px-2 text-stone-400 font-medium">
                 Or continue with
               </span>
             </div>
           </div>
 
-          <GoogleButton
-            onClick={() => navigate("/auth/google")}
-            disabled={submitting || isLoading}
-          />
+          <div className="mt-4">
+            <GoogleButton
+              onClick={handleGoogleSignIn}
+              disabled={submitting || isLoading}
+            />
+          </div>
 
           <p className="mt-6 text-center text-sm text-stone-600">
             Already have an account?{" "}
             <a
               href="/login"
-              className="font-medium text-brand hover:text-brand-dark"
+              className="font-semibold text-brand hover:text-brand-dark hover:underline"
             >
               Sign in
             </a>

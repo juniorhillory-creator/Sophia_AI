@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { User } from "../api/types";
 import { login, register, logout, refreshTokens, errorMessage } from "../api/auth";
-import { setAuthToken } from "../api/client";
+import { setAuthToken, setRefreshToken } from "../api/client";
 
 type AuthState =
   | { kind: "unauthenticated" }
@@ -37,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const parsed = JSON.parse(stored);
         if (parsed?.accessToken && parsed?.user) {
           setAuthToken(parsed.accessToken);
+          setRefreshToken(parsed.refreshToken || null);
           return {
             kind: "authenticated",
             user: parsed.user,
@@ -57,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setSession = useCallback(
     (tokens: { access_token: string; refresh_token: string }, user: User) => {
       setAuthToken(tokens.access_token);
+      setRefreshToken(tokens.refresh_token);
       try {
         sessionStorage.setItem(
           "sophia_auth",
@@ -89,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(response.tokens, response.user);
       } catch (reason) {
         setAuthToken(null);
+        setRefreshToken(null);
         try {
           sessionStorage.removeItem("sophia_auth");
         } catch {}
@@ -114,6 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(response.tokens, response.user);
       } catch (reason) {
         setAuthToken(null);
+        setRefreshToken(null);
         try {
           sessionStorage.removeItem("sophia_auth");
         } catch {}
@@ -135,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
     setAuthToken(null);
+    setRefreshToken(null);
     try {
       sessionStorage.removeItem("sophia_auth");
     } catch {}
@@ -150,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(tokens, current.user);
     } catch {
       setAuthToken(null);
+      setRefreshToken(null);
       try {
         sessionStorage.removeItem("sophia_auth");
       } catch {}

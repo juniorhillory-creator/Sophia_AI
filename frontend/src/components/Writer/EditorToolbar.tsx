@@ -6,6 +6,9 @@ interface EditorToolbarProps {
   onFormat: (type: "h1" | "h2" | "bold" | "italic" | "list" | "quote") => void;
   onExport: (format: "md" | "txt") => void;
   onCopyAll: () => void;
+  onSave?: () => void;
+  onNewDraft?: () => void;
+  syncStatus?: "saved" | "saving" | "offline";
   hasActivePaper: boolean;
 }
 
@@ -17,6 +20,9 @@ export function EditorToolbar({
   onFormat,
   onExport,
   onCopyAll,
+  onSave,
+  onNewDraft,
+  syncStatus = "saved",
   hasActivePaper,
 }: EditorToolbarProps) {
   return (
@@ -93,6 +99,27 @@ export function EditorToolbar({
         </div>
 
         <div className="flex items-center gap-1.5">
+          {onNewDraft && (
+            <button
+              type="button"
+              onClick={onNewDraft}
+              className="flex items-center gap-1 rounded-lg border border-stone-200 px-2.5 py-1 text-xs font-medium text-stone-700 hover:bg-stone-50"
+              title="Start a new manuscript"
+            >
+              + New Draft
+            </button>
+          )}
+          {onSave && (
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={syncStatus === "saving"}
+              className="flex items-center gap-1 rounded-lg border border-stone-200 px-2.5 py-1 text-xs font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+              title="Save draft immediately"
+            >
+              {syncStatus === "saving" ? "Saving…" : "Save"}
+            </button>
+          )}
           <button
             type="button"
             onClick={onCopyAll}
