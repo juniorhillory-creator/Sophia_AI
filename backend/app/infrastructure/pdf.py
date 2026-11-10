@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import pymupdf
@@ -14,7 +15,10 @@ class PageText:
     text: str
 
 
-def extract_pages(data: bytes) -> list[PageText]:
+def extract_pages(
+    data: bytes,
+    vision_transcriber: Callable[[bytes], str] | None = None,
+) -> list[PageText]:
     if b"%PDF" not in data[:1024]:
         raise AppError("invalid_pdf", "Upload a valid PDF file.", 400)
     try:
@@ -25,10 +29,19 @@ def extract_pages(data: bytes) -> list[PageText]:
     try:
         if document.is_encrypted and not document.authenticate(""):
             raise AppError("invalid_pdf", "This PDF is password-protected.", 400)
-        pages = [
-            PageText(page_number=page.number + 1, text=page.get_text("text").strip())
-            for page in document
-        ]
+        pages: list[PageText] = []
+        for page in document:
+            text = page.get_text("text").strip()
+            if len(text) < 20 and vision_transcriber is not None:
+                try:
+                    pix = page.get_pixmap(dpi=150)
+                    image_bytes = pix.tobytes("png")
+                    transcribed = vision_transcriber(image_bytes)
+                    if transcribed:
+                        text = transcribed
+                except Exception as ocr_err:
+                    logger.warning("vision_ocr_page_failed", extra={"page": page.number + 1, "error": str(ocr_err)})
+            pages.append(PageText(page_number=page.number + 1, text=text))
     finally:
         document.close()
     if not pages:
@@ -36,7 +49,7 @@ def extract_pages(data: bytes) -> list[PageText]:
     if not any(page.text for page in pages):
         raise AppError(
             "empty_document",
-            "This PDF has no extractable text. Scanned pages are not supported.",
+            "This PDF has no extractable text. Scanned pages are not supported without an AI Vision model configured.",
             400,
         )
     return pages
