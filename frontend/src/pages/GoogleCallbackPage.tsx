@@ -225,7 +225,15 @@ export function GoogleCallbackPage() {
           </svg>
         </div>
         <h2 className="text-xl font-bold tracking-tight text-stone-900">Sign-in failed</h2>
-        <p className="mt-2 text-sm text-stone-600">{error}</p>
+        <p className="mt-2 text-sm text-stone-600 leading-relaxed">{error}</p>
+        
+        {/* Diagnostic info to debug OAuth redirects */}
+        <div className="mt-4 p-3 bg-stone-50 border border-stone-200 rounded-lg text-left text-xs font-mono text-stone-600 break-all space-y-1">
+          <div><span className="font-semibold text-stone-800">Origin:</span> {window.location.origin}</div>
+          <div><span className="font-semibold text-stone-800">Search params:</span> {window.location.search || "(empty)"}</div>
+          <div><span className="font-semibold text-stone-800">Hash fragment:</span> {window.location.hash ? `${window.location.hash.slice(0, 30)}...` : "(empty)"}</div>
+        </div>
+
         <button
           type="button"
           onClick={() => navigate("/login")}
