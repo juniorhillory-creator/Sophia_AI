@@ -93,19 +93,8 @@ export function GoogleCallbackPage() {
     }
 
     void (async () => {
-      // 1. Check if Supabase's detectSessionInUrl already processed the code
+      // First attempt: exchange code directly via Supabase if configured
       if (isSupabaseConfigured) {
-        try {
-          const { data: existingData } = await supabase.auth.getSession();
-          if (existingData?.session?.user) {
-            handleSessionSuccess(existingData.session);
-            return;
-          }
-        } catch {
-          // Continue to manual exchange
-        }
-
-        // 2. Explicitly exchange code for session
         try {
           const { data, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
           if (data?.session?.user) {
@@ -113,21 +102,10 @@ export function GoogleCallbackPage() {
             return;
           }
           if (exchangeErr) {
-            // Secondary check if getSession succeeded concurrently
-            const { data: retryData } = await supabase.auth.getSession();
-            if (retryData?.session?.user) {
-              handleSessionSuccess(retryData.session);
-              return;
-            }
-            setLoading(false);
-            setError(`Google sign-in error: ${exchangeErr.message}`);
-            return;
+            console.warn("Supabase code exchange failed:", exchangeErr);
           }
         } catch (sbErr) {
-          setLoading(false);
-          const msg = sbErr instanceof Error ? sbErr.message : "Supabase authentication exchange failed";
-          setError(`Google sign-in error: ${msg}`);
-          return;
+          console.warn("Supabase code exchange error:", sbErr);
         }
       }
 

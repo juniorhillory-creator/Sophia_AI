@@ -38,7 +38,7 @@ export function LoginPage() {
     clearError();
     if (isSupabaseConfigured) {
       try {
-        const { data, error: sbError } = await supabase.auth.signInWithOAuth({
+        const { error: sbError } = await supabase.auth.signInWithOAuth({
           provider: "google",
           options: {
             redirectTo: `${window.location.origin}/auth/google/callback`,
@@ -46,10 +46,6 @@ export function LoginPage() {
         });
         if (sbError) {
           setGoogleError(`Google sign-in error: ${sbError.message}`);
-          return;
-        }
-        if (data?.url) {
-          window.location.href = data.url;
         }
       } catch (err) {
         setGoogleError("Unable to initiate Google sign-in. Please try again or use password.");
