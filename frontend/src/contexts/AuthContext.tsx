@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, type React
 import type { User } from "../api/types";
 import { login, register, logout, refreshTokens, errorMessage } from "../api/auth";
 import { setAuthToken, setRefreshToken } from "../api/client";
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 type AuthState =
   | { kind: "unauthenticated" }
@@ -165,8 +166,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [state, setSession]);
 
   useEffect(() => {
-    // No token persistence: tokens live in memory only per security rules
-  }, []);
+    if (!isSupabaseConfigured) return;
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION")) {
+        const sbUser = session.user;
+        const now = new Date().toISOString();
+        setSession(
+          {
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+          },
+          {
+            id: sbUser.id,
+            username: sbUser.user_metadata?.username || sbUser.email?.split("@")[0] || "user",
+            email: sbUser.email || "",
+            full_name: sbUser.user_metadata?.full_name || null,
+            avatar_url: sbUser.user_metadata?.avatar_url || null,
+            is_active: true,
+            is_verified: true,
+            created_at: now,
+            updated_at: now,
+          },
+        );
+      }
+    });
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [setSession]);
 
   const value: AuthContextType = {
     state,

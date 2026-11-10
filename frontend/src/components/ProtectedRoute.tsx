@@ -13,7 +13,10 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return null;
   }
 
-  if (!isAuthenticated) {
+  // Check if session was restored or exists in sessionStorage to prevent bounce during transition
+  const hasStoredSession = Boolean(sessionStorage.getItem("sophia_auth"));
+
+  if (!isAuthenticated && !hasStoredSession) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

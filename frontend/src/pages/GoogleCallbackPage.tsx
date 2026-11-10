@@ -59,11 +59,11 @@ export function GoogleCallbackPage() {
           updated_at: now,
         },
       );
-      navigate("/dashboard", { replace: true });
+      window.location.replace("/dashboard");
     };
 
-    // 2. Check if Supabase handled OAuth directly via URL hash
-    if (isSupabaseConfigured && window.location.hash && window.location.hash.includes("access_token")) {
+    // 2. First check if a session already exists or was detected by Supabase client
+    if (isSupabaseConfigured) {
       void (async () => {
         try {
           const { data, error: sessionErr } = await supabase.auth.getSession();
@@ -71,62 +71,49 @@ export function GoogleCallbackPage() {
             handleSessionSuccess(data.session);
             return;
           }
-          if (sessionErr) {
+        } catch {
+          // Continue to code exchange
+        }
+
+        // 3. Check query parameters for authorization code (PKCE flow)
+        const code = searchParams.get("code");
+        if (code) {
+          try {
+            const { data, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+            if (data?.session?.user) {
+              handleSessionSuccess(data.session);
+              return;
+            }
+          } catch (sbErr) {
+            console.warn("Supabase code exchange error:", sbErr);
+          }
+
+          // Fallback to backend Google auth endpoint
+          try {
+            const redirect_uri = window.location.origin + "/auth/google/callback";
+            const response = await googleAuth({ code, redirect_uri });
+            setSession(response.tokens, response.user);
+            window.location.replace("/dashboard");
+            return;
+          } catch (err: unknown) {
             setLoading(false);
-            setError(`Google session error: ${sessionErr.message}`);
+            const msg = err instanceof Error ? err.message : "Failed to complete Google sign-in. Please try again.";
+            if (msg.toLowerCase().includes("not implemented") || msg.toLowerCase().includes("not configured")) {
+              setError(
+                "Google OAuth is not configured on this project. Please configure Google OAuth credentials or sign in with your username/email and password.",
+              );
+            } else {
+              setError(msg);
+            }
             return;
           }
-        } catch (err: unknown) {
-          setLoading(false);
-          setError(err instanceof Error ? err.message : "Session error");
         }
+
+        setLoading(false);
+        setError("No authorization code received from Google.");
       })();
       return;
     }
-
-    // 3. Check query parameters for authorization code (PKCE flow)
-    const code = searchParams.get("code");
-    if (!code) {
-      setLoading(false);
-      setError("No authorization code received from Google.");
-      return;
-    }
-
-    void (async () => {
-      // First attempt: exchange code directly via Supabase if configured
-      if (isSupabaseConfigured) {
-        try {
-          const { data, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
-          if (data?.session?.user) {
-            handleSessionSuccess(data.session);
-            return;
-          }
-          if (exchangeErr) {
-            console.warn("Supabase code exchange failed:", exchangeErr);
-          }
-        } catch (sbErr) {
-          console.warn("Supabase code exchange error:", sbErr);
-        }
-      }
-
-      // Second attempt: fall back to backend Google auth endpoint
-      try {
-        const redirect_uri = window.location.origin + "/auth/google/callback";
-        const response = await googleAuth({ code, redirect_uri });
-        setSession(response.tokens, response.user);
-        navigate("/dashboard", { replace: true });
-      } catch (err: unknown) {
-        setLoading(false);
-        const msg = err instanceof Error ? err.message : "Failed to complete Google sign-in. Please try again.";
-        if (msg.toLowerCase().includes("not implemented") || msg.toLowerCase().includes("not configured")) {
-          setError(
-            "Google OAuth is not configured on this project. Please configure Google OAuth credentials or sign in with your username/email and password.",
-          );
-        } else {
-          setError(msg);
-        }
-      }
-    })();
   }, [navigate, setSession]);
 
   if (loading) {
