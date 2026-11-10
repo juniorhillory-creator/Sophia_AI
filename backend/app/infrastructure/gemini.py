@@ -9,7 +9,7 @@ from app.domain.errors import AppError
 logger = logging.getLogger("sophia.gemini")
 
 
-_FALLBACK_MODELS = ("gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash")
+_FALLBACK_MODELS = ("gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash")
 
 
 def _clean_schema(schema: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -48,8 +48,11 @@ class GeminiClient:
                 last_exc = exc
                 err_code = getattr(exc, "code", 500)
                 err_msg = str(getattr(exc, "message", exc)).lower()
+                # If API key is invalid, fail immediately with clear key message
+                if "api key" in err_msg or "api_key" in err_msg or "key not valid" in err_msg:
+                    raise _map_error(exc) from exc
                 # If model is invalid, unsupported, or not found, try next candidate
-                if err_code in (400, 404) and any(kw in err_msg for kw in ("not found", "not supported", "invalid", "unknown")):
+                if err_code in (400, 404) and any(kw in err_msg for kw in ("not found", "not supported", "unknown model", "model not", "is not supported")):
                     continue
                 raise _map_error(exc) from exc
         raise _map_error(last_exc) from last_exc
@@ -201,7 +204,11 @@ def _map_error(exc: APIError) -> AppError:
         return AppError("model_timeout", "The Gemini model request timed out.", 504)
     if code == 429:
         return AppError("model_unavailable", "Gemini rate limit exceeded. Please retry in a moment.", 429)
-    if code in (401, 403):
-        return AppError("model_unavailable", "Invalid or unauthorized Gemini API key.", 503)
+    if code in (401, 403) or "api_key_invalid" in msg.lower() or "api key not valid" in msg.lower():
+        return AppError(
+            "model_unavailable",
+            "Invalid or unauthorized Gemini API key. Please check your GEMINI_API_KEY environment variable.",
+            503,
+        )
     return AppError("model_unavailable", f"Gemini API error ({code}): {msg}", 503)
 
