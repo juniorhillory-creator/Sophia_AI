@@ -198,7 +198,15 @@ export function ChatPanel({ documentId, onOpenPage }: ChatPanelProps) {
           </p>
         ) : null}
       </div>
-      <div className="mt-4 flex gap-2 border-t border-stone-200 pt-4">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!pending && draft.trim().length > 0) {
+            void send(draft);
+          }
+        }}
+        className="mt-4 flex gap-2 border-t border-stone-200 pt-4"
+      >
         <label className="sr-only" htmlFor={inputId}>
           Question
         </label>
@@ -207,14 +215,14 @@ export function ChatPanel({ documentId, onOpenPage }: ChatPanelProps) {
           value={draft}
           maxLength={2000}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="Ask a question"
+          placeholder="Ask a question about this paper..."
           className="min-w-0 flex-1 border border-stone-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand focus:ring-offset-2"
           disabled={pending}
         />
         {pending ? (
           <button
             type="button"
-            className="bg-stone-200 px-4 py-2.5 text-sm font-medium text-stone-500 focus:ring-2 focus:ring-brand focus:ring-offset-2"
+            className="bg-stone-200 px-4 py-2.5 text-sm font-medium text-stone-700 hover:bg-stone-300 focus:ring-2 focus:ring-brand focus:ring-offset-2 transition-colors"
             onClick={abortStream}
             aria-label="Stop streaming"
           >
@@ -223,13 +231,13 @@ export function ChatPanel({ documentId, onOpenPage }: ChatPanelProps) {
         ) : (
           <button
             type="submit"
-            className="bg-brand px-4 py-2.5 text-sm font-medium text-white disabled:bg-stone-300 focus:ring-2 focus:ring-brand focus:ring-offset-2"
+            className="bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-dark disabled:bg-stone-300 disabled:cursor-not-allowed focus:ring-2 focus:ring-brand focus:ring-offset-2 transition-colors"
             disabled={draft.trim().length === 0}
           >
             Ask
           </button>
         )}
-      </div>
+      </form>
     </div>
   );
 }

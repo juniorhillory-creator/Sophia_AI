@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Document, PaperSummary, SourceCitation } from "../../api/types";
-import { askQuestion, createSummary, errorMessage, getSummary } from "../../api/client";
+import { ApiError, askQuestion, createSummary, errorMessage, getSummary } from "../../api/client";
 
 interface ReferenceDrawerProps {
   documents: Document[];
@@ -35,8 +35,8 @@ export function ReferenceDrawer({
       try {
         const cached = await getSummary(docId);
         setSummary(cached);
-      } catch (err: any) {
-        if (err.status === 409) {
+      } catch (err: unknown) {
+        if (err instanceof ApiError && (err.status === 409 || err.status === 404)) {
           const fresh = await createSummary(docId);
           setSummary(fresh);
         } else {
@@ -50,15 +50,18 @@ export function ReferenceDrawer({
     }
   };
 
+  useEffect(() => {
+    if (selectedDocumentId) {
+      void handleLoadSummary(selectedDocumentId);
+    } else {
+      setSummary(null);
+    }
+  }, [selectedDocumentId]);
+
   const handleDocumentChange = (id: string) => {
     onSelectDocument(id);
     setQaAnswer(null);
     setQaSources([]);
-    if (id) {
-      void handleLoadSummary(id);
-    } else {
-      setSummary(null);
-    }
   };
 
   const handleAskQuestion = async (e: React.FormEvent) => {
