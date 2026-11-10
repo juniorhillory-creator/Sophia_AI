@@ -27,7 +27,7 @@ export function Sidebar({
     {
       id: "/dashboard",
       label: "Dashboard",
-      href: "/dashboard",
+      href: "/papers",
       icon: (active: boolean) => (
         <svg
           className={`h-5 w-5 shrink-0 ${active ? "text-orange-600" : "text-gray-500"}`}
@@ -48,7 +48,7 @@ export function Sidebar({
     {
       id: "/papers",
       label: "My Papers",
-      href: "/dashboard",
+      href: "/papers",
       icon: (active: boolean) => (
         <svg
           className={`h-5 w-5 shrink-0 ${active ? "text-orange-600" : "text-gray-500"}`}
