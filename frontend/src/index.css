@@ -45,6 +45,30 @@
 
 :root {
   color-scheme: light;
+  --background: #ffffff;
+  --foreground: #1c1917;
+  --card: #ffffff;
+  --card-foreground: #1c1917;
+  --popover: #ffffff;
+  --popover-foreground: #1c1917;
+  --primary: #f26934;
+  --primary-foreground: #ffffff;
+  --secondary: #f5f5f4;
+  --secondary-foreground: #1c1917;
+  --muted: #f5f5f4;
+  --muted-foreground: #78716c;
+  --accent: #fff4ed;
+  --accent-foreground: #f26934;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e7e5e4;
+  --input: #e7e5e4;
+  --ring: #f26934;
+  --color-brand: #f26934;
+  --color-brand-foreground: #ffffff;
+  --primitive-radius-item: 0.625rem;
+  --primitive-radius-control-sm: 0.625rem;
+  --primitive-radius-surface: 1rem;
 }
 
 *,

@@ -119,7 +119,7 @@ export function DashboardPage({ initialDocument }: { initialDocument?: Document 
       <div className="flex flex-1">
         <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} activePath="/dashboard" />
 
-        <main className={`flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 ${collapsed ? "md:pl-0" : "md:pl-64"}`}>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 min-w-0">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8">
               <div>
