@@ -21,6 +21,7 @@ export function DashboardPage({
     initialDocument ? [initialDocument] : [],
   );
   const [loadingDocs, setLoadingDocs] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
@@ -29,50 +30,17 @@ export function DashboardPage({
   useEffect(() => {
     let active = true;
     void (async () => {
+      setLoadingDocs(true);
+      setLoadError(null);
       try {
         const list = await fetchDocuments();
         if (active) {
-          if (list && list.length > 0) {
-            setDocuments(list);
-          } else {
-            // Seed with sample documents matching reference preview if empty
-            setDocuments([
-              {
-                id: "sample-1",
-                filename: "9781807786076.pdf",
-                page_count: 178,
-                chunk_count: 264,
-                created_at: new Date().toISOString(),
-              },
-              {
-                id: "sample-2",
-                filename: "9781807786076.pdf",
-                page_count: 178,
-                chunk_count: 264,
-                created_at: new Date().toISOString(),
-              },
-            ]);
-          }
+          setDocuments(list || []);
         }
-      } catch {
+      } catch (err) {
         if (active) {
-          // Graceful fallback for preview when backend is spun down
-          setDocuments([
-            {
-              id: "sample-1",
-              filename: "9781807786076.pdf",
-              page_count: 178,
-              chunk_count: 264,
-              created_at: new Date().toISOString(),
-            },
-            {
-              id: "sample-2",
-              filename: "9781807786076.pdf",
-              page_count: 178,
-              chunk_count: 264,
-              created_at: new Date().toISOString(),
-            },
-          ]);
+          setDocuments([]);
+          setLoadError(errorMessage(err));
         }
       } finally {
         if (active) setLoadingDocs(false);
@@ -101,10 +69,7 @@ export function DashboardPage({
         const percent = total > 0 ? Math.round((loaded / total) * 100) : 0;
         setUploadPercent(percent >= 100 ? null : percent);
       });
-      setDocuments((prev) => [
-        doc,
-        ...prev.filter((d) => !d.id.startsWith("sample-")),
-      ]);
+      setDocuments((prev) => [doc, ...prev]);
       navigate(`/workspace/${doc.id}`, { state: { document: doc, file } });
     } catch (err) {
       setUploadError(errorMessage(err));
@@ -121,10 +86,6 @@ export function DashboardPage({
         `Are you sure you want to delete "${filename}"? This will remove its vectors and summary permanently.`,
       )
     ) {
-      return;
-    }
-    if (docId.startsWith("sample-")) {
-      setDocuments((prev) => prev.filter((d) => d.id !== docId));
       return;
     }
     try {
@@ -233,6 +194,20 @@ export function DashboardPage({
             </div>
           )}
 
+          {/* Load Error Banner if any */}
+          {loadError && (
+            <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 flex items-center justify-between">
+              <span>Failed to load papers: {loadError}</span>
+              <button
+                type="button"
+                onClick={() => setLoadError(null)}
+                className="text-amber-600 hover:text-amber-900 text-xs font-semibold"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
           {/* 3. Statistics Cards Grid (3 Columns) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 my-6">
             {/* Card 1: Total Papers */}
@@ -251,7 +226,7 @@ export function DashboardPage({
                 TOTAL PAGES INDEXED
               </span>
               <span className="text-3xl font-bold text-gray-900 mt-2 block tracking-tight">
-                {totalPages || 356}
+                {totalPages}
               </span>
             </div>
 
