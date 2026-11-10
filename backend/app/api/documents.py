@@ -37,6 +37,7 @@ from app.schemas.models import (
     ProcessingStage,
     QuestionRequest,
 )
+from app.infrastructure.pdf import extract_pages
 from app.services.ingestion import IngestionService
 from app.services.llm import Llm
 from app.services.rag import RagService
@@ -344,15 +345,39 @@ async def create_summary(
     if db.is_connected and doc_model is not None and getattr(doc_model, "summary", None) is not None:
         return PaperSummary.model_validate_json(doc_model.summary)
 
-    # 3. Generate summary via LLM
+    # 3. Ensure pages are hydrated from storage if in-memory session was empty/lost
+    pages = session.pages if session else []
+    if not pages:
+        pdf_bytes = None
+        if supabase is not None:
+            try:
+                storage = SupabaseStorageService(supabase)
+                pdf_bytes = await storage.download_pdf(user_id, document_id)
+            except Exception:
+                pass
+        if not pdf_bytes:
+            data_dir = Path(settings.chroma_path).parent / "documents" / str(document_id)
+            pdf_path = data_dir / "original.pdf"
+            if pdf_path.exists():
+                pdf_bytes = pdf_path.read_bytes()
+
+        if pdf_bytes:
+            vision_transcriber = getattr(llm, "transcribe_image", None)
+            pages = await asyncio.to_thread(
+                extract_pages, pdf_bytes, vision_transcriber=vision_transcriber
+            )
+            if session:
+                session.pages = pages
+
+    # 4. Generate summary via LLM
     summary = await asyncio.to_thread(
         summarize,
-        session.pages,
+        pages,
         llm,
         settings.llm_timeout_seconds,
     )
 
-    # 4. Save to Supabase
+    # 5. Save to Supabase
     if supabase is not None:
         try:
             doc_svc = SupabaseDocumentService(supabase)
