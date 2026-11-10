@@ -13,7 +13,10 @@ export const INSUFFICIENT = "The paper does not contain sufficient information."
 
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
-const rawBase = (import.meta.env.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "");
+const rawBase = (import.meta.env.VITE_API_BASE_URL || "")
+  .replace(/^VITE_API_BASE_URL=+/i, "")
+  .trim()
+  .replace(/\/+$/, "");
 export const API_BASE = rawBase.endsWith("/api/v1")
   ? rawBase.slice(0, -"/api/v1".length)
   : rawBase;
