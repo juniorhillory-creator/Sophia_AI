@@ -195,7 +195,7 @@ def _map_error(exc: APIError) -> AppError:
         code = 500
 
     msg = getattr(exc, "message", None) or str(exc)
-    logger.error("gemini_api_error", extra={"code": code, "message": msg})
+    logger.error("gemini_api_error", extra={"code": code, "error_detail": msg})
 
     if code in (408, 504):
         return AppError("model_timeout", "The Gemini model request timed out.", 504)
