@@ -42,8 +42,8 @@ def _clean_schema(schema: Any) -> Any:
 class GeminiClient:
     """Google Gemini API client satisfying the Llm protocol."""
 
-    def __init__(self, api_key: str, model: str = "gemini-2.5-flash") -> None:
-        self._client = genai.Client(api_key=api_key)
+    def __init__(self, api_key: str = "", model: str = "gemini-2.5-flash") -> None:
+        self._client = genai.Client(api_key=api_key or "DUMMY_KEY")
         self._model = model
 
     def _call_with_fallback(self, func, **kwargs):

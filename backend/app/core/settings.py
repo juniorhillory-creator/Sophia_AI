@@ -63,12 +63,8 @@ class Settings(BaseSettings):
     )
     log_level: str = "INFO"
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-3.8-flash"
+    gemini_model: str = "gemini-2.5-flash"
     llm_timeout_seconds: float = 120
-    ollama_base_url: str = "http://127.0.0.1:11434"
-    ollama_model: str = "llama3.2"
-    ollama_timeout_seconds: float = 120
-    ollama_num_gpu: int | None = None
     embedding_model: str = "all-MiniLM-L6-v2"
     chroma_path: str = "data/chroma"
     retrieval_top_k: int = 4
@@ -104,22 +100,6 @@ class Settings(BaseSettings):
         stripped = value.strip()
         if not stripped:
             raise ValueError("gemini_model must not be blank")
-        return stripped
-
-    @field_validator("ollama_model")
-    @classmethod
-    def require_model_name(cls, value: str) -> str:
-        stripped = value.strip()
-        if not stripped:
-            raise ValueError("ollama_model must not be blank")
-        return stripped
-
-    @field_validator("ollama_base_url")
-    @classmethod
-    def require_ollama_url(cls, value: str) -> str:
-        stripped = value.strip().rstrip("/")
-        if not stripped.startswith(("http://", "https://")):
-            raise ValueError("ollama_base_url must be an http(s) URL")
         return stripped
 
     @field_validator("cors_origins", mode="before")
@@ -178,8 +158,6 @@ class Settings(BaseSettings):
             raise ValueError("chunk_overlap must be >= 0 and smaller than chunk_size")
         if self.llm_timeout_seconds <= 0:
             raise ValueError("llm_timeout_seconds must be positive")
-        if self.ollama_timeout_seconds <= 0:
-            raise ValueError("ollama_timeout_seconds must be positive")
         if self.retrieval_top_k not in (3, 4):
             raise ValueError("retrieval_top_k must be 3 or 4")
         if not 0 <= self.similarity_threshold <= 1:

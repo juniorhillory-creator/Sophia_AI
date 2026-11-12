@@ -32,17 +32,8 @@ def test_retrieval_defaults_stay_in_range() -> None:
         Settings(similarity_threshold=1.1)
 
 
-def test_ollama_defaults_are_local() -> None:
-    assert Settings.model_fields["ollama_base_url"].default == "http://127.0.0.1:11434"
-    assert Settings.model_fields["ollama_model"].default == "llama3.2"
-    with pytest.raises(ValidationError):
-        Settings(ollama_model="  ")
-    with pytest.raises(ValidationError):
-        Settings(ollama_timeout_seconds=0)
-
-
 def test_gemini_defaults_and_validation() -> None:
-    assert Settings.model_fields["gemini_model"].default == "gemini-3.8-flash"
+    assert Settings.model_fields["gemini_model"].default == "gemini-2.5-flash"
     assert Settings.model_fields["gemini_api_key"].default == ""
     assert Settings.model_fields["llm_timeout_seconds"].default == 120
     with pytest.raises(ValidationError):

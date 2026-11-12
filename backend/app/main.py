@@ -16,7 +16,7 @@ from app.core.supabase import get_supabase_client, is_supabase_configured
 from app.db.session import get_database
 from app.infrastructure.chroma_store import ChromaStore
 from app.infrastructure.embeddings import Embedder, SentenceTransformerEmbedder
-from app.infrastructure.ollama import OllamaClient
+from app.infrastructure.gemini import GeminiClient
 from app.services.rag import RagService
 from app.services.sessions import SessionStore
 
@@ -60,13 +60,7 @@ def create_app(
     app = FastAPI(title="Sophia AI", version="0.1.0", lifespan=lifespan)
     app.state.settings = resolved
     app.state.sessions = SessionStore()
-    if resolved.gemini_api_key:
-        from app.infrastructure.gemini import GeminiClient
-        app.state.llm = GeminiClient(resolved.gemini_api_key, resolved.gemini_model)
-    else:
-        app.state.llm = OllamaClient(
-            resolved.ollama_base_url, resolved.ollama_model, resolved.ollama_num_gpu
-        )
+    app.state.llm = GeminiClient(resolved.gemini_api_key, resolved.gemini_model)
     app.state.rag = RagService(
         embedder or SentenceTransformerEmbedder(resolved.embedding_model),
         vectors or ChromaStore.open(resolved.chroma_path),
