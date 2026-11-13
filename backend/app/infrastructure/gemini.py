@@ -82,7 +82,9 @@ class GeminiClient:
                 ):
                     continue
                 raise exc
-        raise last_exc
+        if last_exc is not None:
+            raise last_exc
+        raise AppError("model_unavailable", "No Gemini model was available to process the request.", 503)
 
     def complete(
         self,
