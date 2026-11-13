@@ -105,10 +105,17 @@ export async function streamQuestion(
 
     finish?.();
   } catch (error: unknown) {
-    if (onError && error instanceof Error) {
-      onError(error);
+    let finalError =
+      error instanceof Error ? error : new Error("An error occurred during chat stream.");
+    if (finalError.name !== "AbortError" && finalError.message === "Failed to fetch") {
+      finalError = new Error(
+        `Unable to reach the backend at ${API_BASE}. Please verify that the backend is running and reachable.`
+      );
+    }
+    if (onError) {
+      onError(finalError);
     } else {
-      throw error;
+      throw finalError;
     }
   }
 }

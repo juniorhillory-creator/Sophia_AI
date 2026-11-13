@@ -9,7 +9,7 @@ from app.domain.errors import AppError
 logger = logging.getLogger("sophia.gemini")
 
 
-_FALLBACK_MODELS = ("gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash")
+_FALLBACK_MODELS = ("gemini-3.8-flash", "gemini-1.5-flash", "gemini-2.0-flash")
 
 
 _ALLOWED_SCHEMA_KEYS = {
@@ -42,7 +42,7 @@ def _clean_schema(schema: Any) -> Any:
 class GeminiClient:
     """Google Gemini API client satisfying the Llm protocol."""
 
-    def __init__(self, api_key: str = "", model: str = "gemini-2.5-flash") -> None:
+    def __init__(self, api_key: str = "", model: str = "gemini-3.8-flash") -> None:
         self._client = genai.Client(api_key=api_key or "DUMMY_KEY")
         self._model = model
 
@@ -67,7 +67,19 @@ class GeminiClient:
                 if "schema" in err_msg or "additional_properties" in err_msg or "additionalproperties" in err_msg:
                     raise exc
                 # If model is invalid, unsupported, or not found, try next candidate
-                if err_code in (400, 404) and any(kw in err_msg for kw in ("not found", "not supported", "unknown model", "model not", "is not supported")):
+                if err_code in (400, 404) and any(
+                    kw in err_msg
+                    for kw in (
+                        "not found",
+                        "not supported",
+                        "unknown model",
+                        "model not",
+                        "is not supported",
+                        "no longer available",
+                        "not available",
+                        "is not available",
+                    )
+                ):
                     continue
                 raise exc
         raise last_exc
@@ -129,20 +141,53 @@ class GeminiClient:
     ) -> AsyncIterator[str]:
         system_instruction, contents = _extract_messages(messages)
         config = types.GenerateContentConfig(system_instruction=system_instruction)
-        try:
-            response_stream = await self._client.aio.models.generate_content_stream(
-                model=self._model,
-                contents=contents,
-                config=config,
-            )
-            async for chunk in response_stream:
-                if chunk.text:
-                    yield chunk.text
-        except APIError as exc:
-            raise _map_error(exc) from exc
-        except Exception as exc:
-            logger.warning("gemini_stream_error", extra={"error": str(exc)})
-            raise AppError("model_unavailable", "The Gemini stream failed.", 503) from exc
+        models_to_try = [self._model] + [m for m in _FALLBACK_MODELS if m != self._model]
+        last_exc = None
+
+        for m in models_to_try:
+            try:
+                response_stream = await self._client.aio.models.generate_content_stream(
+                    model=m,
+                    contents=contents,
+                    config=config,
+                )
+                async for chunk in response_stream:
+                    if chunk.text:
+                        yield chunk.text
+                if m != self._model:
+                    logger.info("gemini_switched_stream_model", extra={"from": self._model, "to": m})
+                    self._model = m
+                return
+            except APIError as exc:
+                last_exc = exc
+                err_code = getattr(exc, "code", 500)
+                err_msg = str(getattr(exc, "message", exc)).lower()
+                if "api key" in err_msg or "api_key" in err_msg or "key not valid" in err_msg:
+                    raise _map_error(exc) from exc
+                if err_code in (400, 404) and any(
+                    kw in err_msg
+                    for kw in (
+                        "not found",
+                        "not supported",
+                        "unknown model",
+                        "model not",
+                        "is not supported",
+                        "no longer available",
+                        "not available",
+                        "is not available",
+                    )
+                ):
+                    continue
+                raise _map_error(exc) from exc
+            except Exception as exc:
+                last_exc = exc
+                logger.warning("gemini_stream_error", extra={"error": str(exc), "model": m})
+                continue
+
+        if last_exc:
+            if isinstance(last_exc, APIError):
+                raise _map_error(last_exc) from last_exc
+            raise AppError("model_unavailable", f"The Gemini stream failed: {last_exc}", 503) from last_exc
 
     def transcribe_image(
         self,

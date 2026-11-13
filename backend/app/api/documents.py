@@ -474,25 +474,31 @@ async def ask_question_stream(
     session, _ = await _get_owned_document(document_id, user_id, sessions, request)
 
     async def event_generator():
-        hits = rag.retrieve(document_id, question)
-        if not hits:
-            yield f"data: {INSUFFICIENT}\n\n"
-            return
+        try:
+            hits = rag.retrieve(document_id, question)
+            if not hits:
+                yield f"data: {INSUFFICIENT}\n\n"
+                return
 
-        async for chunk in rag.answer_stream(document_id, question, llm, settings.llm_timeout_seconds):
-            yield f"data: {chunk}\n\n"
+            async for chunk in rag.answer_stream(document_id, question, llm, settings.llm_timeout_seconds):
+                yield f"data: {chunk}\n\n"
 
-        citations = []
-        for hit in hits:
-            snippet = hit.text[:240].strip()
-            if snippet:
-                citations.append({
-                    "page": hit.page,
-                    "excerpt": snippet[:240],
-                    "chunk_id": hit.chunk_id,
-                })
-        if citations:
-            yield f"data: [CITATIONS]{json.dumps(citations)}\n\n"
+            citations = []
+            for hit in hits:
+                snippet = hit.text[:240].strip()
+                if snippet:
+                    citations.append({
+                        "page": hit.page,
+                        "excerpt": snippet[:240],
+                        "chunk_id": hit.chunk_id,
+                    })
+            if citations:
+                yield f"data: [CITATIONS]{json.dumps(citations)}\n\n"
+        except Exception as exc:
+            import logging
+            logging.getLogger("sophia.documents").error("stream_generation_failed", extra={"error": str(exc)})
+            err_msg = getattr(exc, "message", None) or str(exc)
+            yield f"data: Error: {err_msg}\n\n"
 
     return StreamingResponse(
         event_generator(),
