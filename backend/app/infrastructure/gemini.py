@@ -9,7 +9,7 @@ from app.domain.errors import AppError
 logger = logging.getLogger("sophia.gemini")
 
 
-_FALLBACK_MODELS = ("gemini-3.8-flash", "gemini-1.5-flash", "gemini-2.0-flash")
+_FALLBACK_MODELS = ("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash")
 
 
 _ALLOWED_SCHEMA_KEYS = {
@@ -42,7 +42,7 @@ def _clean_schema(schema: Any) -> Any:
 class GeminiClient:
     """Google Gemini API client satisfying the Llm protocol."""
 
-    def __init__(self, api_key: str = "", model: str = "gemini-3.8-flash") -> None:
+    def __init__(self, api_key: str = "", model: str = "gemini-2.5-flash") -> None:
         self._client = genai.Client(api_key=api_key or "DUMMY_KEY")
         self._model = model
 

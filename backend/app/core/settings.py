@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     )
     log_level: str = "INFO"
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-3.8-flash"
+    gemini_model: str = "gemini-2.5-flash"
     llm_timeout_seconds: float = 120
     embedding_model: str = "all-MiniLM-L6-v2"
     chroma_path: str = "data/chroma"

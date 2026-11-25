@@ -28,7 +28,10 @@ interface TopbarProps {
   title?: string;
 }
 
-export const Topbar: React.FC<TopbarProps> = ({ onMobileDrawerToggle, title }) => {
+export const Topbar: React.FC<TopbarProps> = ({
+  onMobileDrawerToggle,
+  title,
+}) => {
   const { mode, toggleTheme } = useAppTheme();
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
@@ -55,8 +58,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMobileDrawerToggle, title }) =
       position="sticky"
       elevation={0}
       sx={{
-        width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
-        ml: { md: `${DRAWER_WIDTH}px` },
+        width: "100%",
         bgcolor: "background.paper",
         color: "text.primary",
         borderBottom: 1,
@@ -73,15 +75,26 @@ export const Topbar: React.FC<TopbarProps> = ({ onMobileDrawerToggle, title }) =
           <MenuIcon />
         </IconButton>
 
-        <Typography variant="h6" sx={{ fontWeight: 700, flexGrow: 1, fontSize: "1.1rem" }}>
+        <Typography
+          variant="h6"
+          sx={{ fontWeight: 700, flexGrow: 1, fontSize: "1.1rem" }}
+        >
           {title || "Sophia AI"}
         </Typography>
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           {/* Theme Switcher */}
-          <Tooltip title={mode === "light" ? "Switch to dark mode" : "Switch to light mode"}>
+          <Tooltip
+            title={
+              mode === "light" ? "Switch to dark mode" : "Switch to light mode"
+            }
+          >
             <IconButton onClick={toggleTheme} color="inherit" size="small">
-              {mode === "light" ? <DarkModeIcon fontSize="small" /> : <LightModeIcon fontSize="small" />}
+              {mode === "light" ? (
+                <DarkModeIcon fontSize="small" />
+              ) : (
+                <LightModeIcon fontSize="small" />
+              )}
             </IconButton>
           </Tooltip>
 
@@ -89,7 +102,11 @@ export const Topbar: React.FC<TopbarProps> = ({ onMobileDrawerToggle, title }) =
           {isAuthenticated ? (
             <>
               <Tooltip title="Account menu">
-                <IconButton onClick={handleProfileMenuOpen} size="small" sx={{ ml: 1 }}>
+                <IconButton
+                  onClick={handleProfileMenuOpen}
+                  size="small"
+                  sx={{ ml: 1 }}
+                >
                   <Avatar
                     sx={{
                       width: 34,
@@ -99,7 +116,11 @@ export const Topbar: React.FC<TopbarProps> = ({ onMobileDrawerToggle, title }) =
                       fontWeight: 600,
                     }}
                   >
-                    {user?.username ? user.username.charAt(0).toUpperCase() : <PersonIcon fontSize="small" />}
+                    {user?.username ? (
+                      user.username.charAt(0).toUpperCase()
+                    ) : (
+                      <PersonIcon fontSize="small" />
+                    )}
                   </Avatar>
                 </IconButton>
               </Tooltip>
@@ -122,7 +143,10 @@ export const Topbar: React.FC<TopbarProps> = ({ onMobileDrawerToggle, title }) =
                   <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                     {user?.username || "Researcher"}
                   </Typography>
-                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary" }}
+                  >
                     {user?.email || "researcher@sophia.local"}
                   </Typography>
                 </Box>
@@ -162,4 +186,3 @@ export const Topbar: React.FC<TopbarProps> = ({ onMobileDrawerToggle, title }) =
     </AppBar>
   );
 };
-

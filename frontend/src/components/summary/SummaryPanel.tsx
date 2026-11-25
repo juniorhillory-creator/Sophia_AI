@@ -189,33 +189,45 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
 
   // Self-managing mode if documentId provided and no external summary passed
   const queryEnabled = Boolean(documentId && externalSummary === undefined);
-  const {
-    data: fetchedSummary,
-    isLoading: queryLoading,
-  } = useQuery<PaperSummary | null>({
-    queryKey: ["summary", documentId],
-    queryFn: async () => {
-      try {
-        return await summaryApi.getSummary(documentId!);
-      } catch {
-        return null;
-      }
-    },
-    enabled: queryEnabled,
-  });
+  const { data: fetchedSummary, isLoading: queryLoading } =
+    useQuery<PaperSummary | null>({
+      queryKey: ["summary", documentId],
+      queryFn: async () => {
+        try {
+          return await summaryApi.getSummary(documentId!);
+        } catch {
+          return null;
+        }
+      },
+      enabled: queryEnabled,
+    });
+
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const generateMutation = useMutation({
     mutationFn: () => summaryApi.createSummary(documentId!),
     onSuccess: (data) => {
+      setErrorMessage(null);
       queryClient.setQueryData(["summary", documentId], data);
       setToastMessage("Summary generated successfully!");
     },
+    onError: (err: any) => {
+      const msg =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to generate summary";
+      setErrorMessage(msg);
+    },
   });
 
-  const summary = externalSummary !== undefined ? externalSummary : fetchedSummary;
-  const isLoading = externalLoading !== undefined ? externalLoading : queryLoading;
+  const summary =
+    externalSummary !== undefined ? externalSummary : fetchedSummary;
+  const isLoading =
+    externalLoading !== undefined ? externalLoading : queryLoading;
   const isGenerating =
-    externalGenerating !== undefined ? externalGenerating : generateMutation.isPending;
+    externalGenerating !== undefined
+      ? externalGenerating
+      : generateMutation.isPending;
   const handleGenerate =
     externalOnGenerate || (() => generateMutation.mutate());
 
@@ -235,7 +247,7 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
     link.href = url;
     link.download = `${(documentTitle || documentFilename).replace(
       /\s+/g,
-      "_"
+      "_",
     )}_summary.md`;
     document.body.appendChild(link);
     link.click();
@@ -278,6 +290,14 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
           Generate a 5-section academic AI summary including Title & Abstract,
           Problem Statement, Methodology, Key Results, and Conclusion.
         </Typography>
+        {errorMessage && (
+          <Alert
+            severity="error"
+            sx={{ mb: 3, maxWidth: 460, mx: "auto", textAlign: "left" }}
+          >
+            {errorMessage}
+          </Alert>
+        )}
         <Button
           variant="contained"
           size="large"

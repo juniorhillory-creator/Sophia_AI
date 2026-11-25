@@ -25,13 +25,18 @@ interface SidebarProps {
   onOpenUpload?: () => void;
 }
 
+//sidebar nav
 const NAV_ITEMS = [
   { text: "Dashboard", path: "/", icon: <DashboardIcon /> },
-  { text: "My Research", path: "/research", icon: <MenuBookIcon /> },
+  { text: "My Research", path: "/documents", icon: <MenuBookIcon /> },
   { text: "Settings", path: "/settings", icon: <SettingsIcon /> },
 ];
 
-export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose, onOpenUpload }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  mobileOpen,
+  onClose,
+  onOpenUpload,
+}) => {
   const location = useLocation();
   const navigate = useNavigate();
   const theme = useTheme();
@@ -73,7 +78,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose, onOpenUpl
           <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.1 }}>
             Sophia AI
           </Typography>
-          <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+          <Typography
+            variant="caption"
+            sx={{ color: "text.secondary", fontSize: "0.72rem" }}
+          >
             Research Companion
           </Typography>
         </Box>
@@ -123,7 +131,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose, onOpenUpl
                   py: 1,
                   px: 2,
                   color: isSelected ? "primary.main" : "text.secondary",
-                  bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.08) : "transparent",
+                  bgcolor: isSelected
+                    ? alpha(theme.palette.primary.main, 0.08)
+                    : "transparent",
                   "&.Mui-selected": {
                     bgcolor: alpha(theme.palette.primary.main, 0.1),
                     color: "primary.main",
@@ -161,10 +171,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose, onOpenUpl
 
       {/* Footer Info */}
       <Box sx={{ p: 2.5, borderTop: 1, borderColor: "divider" }}>
-        <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+        <Typography
+          variant="caption"
+          sx={{ color: "text.secondary", display: "block" }}
+        >
           Sophia AI v2.0
         </Typography>
-        <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.7rem" }}>
+        <Typography
+          variant="caption"
+          sx={{ color: "text.secondary", fontSize: "0.7rem" }}
+        >
           Ground-truth research intelligence
         </Typography>
       </Box>
@@ -211,4 +227,3 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose, onOpenUpl
     </>
   );
 };
-
