@@ -59,6 +59,10 @@ export const GoogleCallbackPage: React.FC = () => {
         id: sbUser.id,
         username: sbUser.user_metadata?.username || sbUser.email?.split("@")[0] || "user",
         email: sbUser.email || "",
+        full_name: sbUser.user_metadata?.full_name || null,
+        avatar_url: sbUser.user_metadata?.avatar_url || null,
+        is_active: true,
+        is_verified: true,
         created_at: now,
         updated_at: now,
       };
