@@ -1,3 +1,4 @@
+import math
 from uuid import uuid4
 
 from app.infrastructure.chroma_store import ChromaStore
@@ -69,6 +70,26 @@ def test_vector_search_stays_inside_one_document() -> None:
     assert all("UNIQUEBETA" not in hit.text for hit in alpha_hits)
 
 
+def test_retrieval_relaxes_score_floor_when_too_few_passages_match() -> None:
+    class BorderlineEmbedder:
+        def embed(self, texts: list[str]) -> list[list[float]]:
+            return [
+                [1.0, 0.0] if text == "question" else [0.2, math.sqrt(0.96)]
+                for text in texts
+            ]
+
+    document_id = uuid4()
+    rag = RagService(BorderlineEmbedder(), ChromaStore.memory(), top_k=4, min_score=0.3)
+    chunk = _chunk(document_id, 1, "Evidence relevant to the question")
+    rag.index([chunk])
+
+    hits = rag.retrieve(document_id, "question")
+
+    assert len(hits) == 1
+    assert hits[0].chunk_id == chunk.chunk_id
+    assert 0.15 <= hits[0].score <= 0.25
+
+
 def test_citations_copy_page_excerpt_and_chunk_id() -> None:
     document_id = uuid4()
     chunk = _chunk(document_id, 2, "The catalyst increased yield on page two only")
@@ -89,6 +110,7 @@ def test_citations_copy_page_excerpt_and_chunk_id() -> None:
     system = llm.calls[0]["messages"][0]["content"]
     assert chunk.text in user
     assert INSUFFICIENT in system
+    assert "equivalent terms" in system
 
     empty = rag.answer(document_id, "catalyst increased yield", llm, 5)
     assert empty.answer == INSUFFICIENT
