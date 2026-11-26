@@ -118,34 +118,3 @@ def test_map_error_status_codes():
     assert err_auth.code == "model_unavailable"
     assert err_auth.status_code == 503
 
-    err_503 = _map_error(
-        APIError(503, {"error": {"message": "This model is currently experiencing high demand. Spikes in demand are usually temporary."}})
-    )
-    assert err_503.code == "model_unavailable"
-    assert err_503.status_code == 503
-    assert "high demand" in err_503.message
-
-
-def test_complete_fallback_on_503_high_demand(monkeypatch):
-    client = GeminiClient(api_key="test-key", model="gemini-3.8-flash")
-    monkeypatch.setattr("time.sleep", lambda _: None)
-
-    overloaded_err = APIError(503, {"error": {"message": "This model is currently experiencing high demand."}})
-    mock_success = MagicMock(text="Successful summary from fallback model")
-
-    def mock_generate_content(*args, **kwargs):
-        if kwargs.get("model") == "gemini-3.8-flash":
-            raise overloaded_err
-        return mock_success
-
-    monkeypatch.setattr(client._client.models, "generate_content", MagicMock(side_effect=mock_generate_content))
-
-    result = client.complete(
-        [{"role": "user", "content": "Summarize"}],
-        json_schema=None,
-        timeout=30.0,
-    )
-    assert result == "Successful summary from fallback model"
-    assert client._model == "gemini-3.8-flash-lite"
-
-

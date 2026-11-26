@@ -1,6 +1,4 @@
-import asyncio
 import logging
-import time
 from typing import Any, AsyncIterator
 from google import genai
 from google.genai import types
@@ -11,7 +9,7 @@ from app.domain.errors import AppError
 logger = logging.getLogger("sophia.gemini")
 
 
-_FALLBACK_MODELS = ("gemini-3.8-flash", "gemini-3.8-flash-lite", "gemini-2.0-flash", "gemini-2.5-pro")
+_FALLBACK_MODELS = ("gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash")
 
 
 _ALLOWED_SCHEMA_KEYS = {
@@ -52,61 +50,40 @@ class GeminiClient:
         models_to_try = [self._model] + [m for m in _FALLBACK_MODELS if m != self._model]
         last_exc = None
         for m in models_to_try:
-            # Retry transient 503/429 spikes once before rotating to the next model
-            for attempt in range(2):
-                try:
-                    result = func(model=m, **kwargs)
-                    if m != self._model:
-                        logger.info("gemini_switched_model", extra={"from": self._model, "to": m})
-                        self._model = m
-                    return result
-                except APIError as exc:
-                    last_exc = exc
-                    err_code = getattr(exc, "code", 500)
-                    err_msg = str(getattr(exc, "message", exc)).lower()
-                    # If API key is invalid, fail immediately with clear key message
-                    if "api key" in err_msg or "api_key" in err_msg or "key not valid" in err_msg:
-                        raise _map_error(exc) from exc
-                    # If schema error, do not rotate models - let caller handle schema fallback
-                    if "schema" in err_msg or "additional_properties" in err_msg or "additionalproperties" in err_msg:
-                        raise exc
-                    # If model is invalid, unsupported, or not found, try next candidate
-                    if err_code in (400, 404) and any(
-                        kw in err_msg
-                        for kw in (
-                            "not found",
-                            "not supported",
-                            "unknown model",
-                            "model not",
-                            "is not supported",
-                            "no longer available",
-                            "not available",
-                            "is not available",
-                        )
-                    ):
-                        break
-                    # If model is experiencing high demand (503) or rate limits (429), retry briefly or rotate
-                    is_overloaded = err_code in (503, 429) or any(
-                        kw in err_msg
-                        for kw in (
-                            "high demand",
-                            "temporarily unavailable",
-                            "spikes in demand",
-                            "resource exhausted",
-                            "overloaded",
-                            "rate limit",
-                        )
-                    )
-                    if is_overloaded:
-                        if attempt == 0:
-                            logger.info("gemini_high_demand_retrying", extra={"model": m, "attempt": attempt + 1})
-                            time.sleep(1.0)
-                            continue
-                        logger.warning("gemini_model_overloaded_rotating", extra={"model": m, "error": err_msg})
-                        break
+            try:
+                result = func(model=m, **kwargs)
+                if m != self._model:
+                    logger.info("gemini_switched_model", extra={"from": self._model, "to": m})
+                    self._model = m
+                return result
+            except APIError as exc:
+                last_exc = exc
+                err_code = getattr(exc, "code", 500)
+                err_msg = str(getattr(exc, "message", exc)).lower()
+                # If API key is invalid, fail immediately with clear key message
+                if "api key" in err_msg or "api_key" in err_msg or "key not valid" in err_msg:
+                    raise _map_error(exc) from exc
+                # If schema error, do not rotate models - let caller handle schema fallback
+                if "schema" in err_msg or "additional_properties" in err_msg or "additionalproperties" in err_msg:
                     raise exc
+                # If model is invalid, unsupported, or not found, try next candidate
+                if err_code in (400, 404) and any(
+                    kw in err_msg
+                    for kw in (
+                        "not found",
+                        "not supported",
+                        "unknown model",
+                        "model not",
+                        "is not supported",
+                        "no longer available",
+                        "not available",
+                        "is not available",
+                    )
+                ):
+                    continue
+                raise exc
         if last_exc is not None:
-            raise _map_error(last_exc) if isinstance(last_exc, APIError) else last_exc
+            raise last_exc
         raise AppError("model_unavailable", "No Gemini model was available to process the request.", 503)
 
     def complete(
@@ -203,19 +180,6 @@ class GeminiClient:
                     )
                 ):
                     continue
-                if err_code in (503, 429) or any(
-                    kw in err_msg
-                    for kw in (
-                        "high demand",
-                        "temporarily unavailable",
-                        "spikes in demand",
-                        "resource exhausted",
-                        "overloaded",
-                        "rate limit",
-                    )
-                ):
-                    logger.warning("gemini_stream_overloaded_rotating", extra={"model": m, "error": err_msg})
-                    continue
                 raise _map_error(exc) from exc
             except Exception as exc:
                 last_exc = exc
@@ -293,14 +257,6 @@ def _map_error(exc: APIError) -> AppError:
         return AppError(
             "model_unavailable",
             "Invalid or unauthorized Gemini API key. Please check your GEMINI_API_KEY environment variable.",
-            503,
-        )
-    if code == 503 or any(
-        phrase in msg.lower() for phrase in ("high demand", "temporarily unavailable", "spikes in demand", "overloaded")
-    ):
-        return AppError(
-            "model_unavailable",
-            "Gemini is currently experiencing high demand. Please try again in a moment.",
             503,
         )
     return AppError("model_unavailable", f"Gemini API error ({code}): {msg}", 503)
