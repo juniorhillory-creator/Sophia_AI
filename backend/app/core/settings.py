@@ -64,8 +64,11 @@ class Settings(BaseSettings):
         ]
     )
     log_level: str = "INFO"
+    ai_provider: str = "gemini"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.8-flash"
+    cerebras_api_key: str = ""
+    cerebras_model: str = "qwen-3.8-27b"
     llm_timeout_seconds: float = 120
     embedding_model: str = "all-MiniLM-L6-v2"
     chroma_path: str = "data/chroma"
@@ -102,6 +105,22 @@ class Settings(BaseSettings):
         stripped = value.strip()
         if not stripped:
             raise ValueError("gemini_model must not be blank")
+        return stripped
+
+    @field_validator("ai_provider")
+    @classmethod
+    def validate_ai_provider(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"gemini", "cerebras"}:
+            raise ValueError("ai_provider must be 'gemini' or 'cerebras'")
+        return normalized
+
+    @field_validator("cerebras_model")
+    @classmethod
+    def require_cerebras_model(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("cerebras_model must not be blank")
         return stripped
 
     @field_validator("cors_origins", mode="before")

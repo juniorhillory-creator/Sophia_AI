@@ -13,7 +13,7 @@ Sophia AI is a privacy-first, AI-powered research workspace. It enables research
   - PDF Extraction: PyMuPDF (`fitz`)
   - Vector Embeddings: SentenceTransformers (`all-MiniLM-L6-v2`)
   - Vector Store: ChromaDB
-  - Primary LLM: Google Gemini API (`gemini-3.8-flash` / `gemini-1.5-flash`)
+  - Selectable LLM: Google Gemini or Cerebras Inference (`qwen-3.8-27b` by default)
   - Local Fallback LLM: Ollama (`llama3.2`)
 
 ---
@@ -26,6 +26,7 @@ Before starting, ensure you have:
 - **Python**: v3.11 or higher (`python --version`)
 - **Supabase Project**: Free tier at [supabase.com](https://supabase.com)
 - **Google Gemini API Key**: Free tier from [Google AI Studio](https://aistudio.google.com/)
+- **Cerebras API Key** *(optional, when `AI_PROVIDER=cerebras`)*: Create a key in the [Cerebras Cloud Console](https://cloud.cerebras.ai/).
 - **Ollama** *(Optional, for offline/local LLM)*: Installed from [ollama.com](https://ollama.com)
 
 ---
@@ -58,9 +59,17 @@ SUPABASE_URL=https://<your-project-id>.supabase.co
 SUPABASE_PUBLISHABLE_KEY=<your-supabase-anon-key>
 SUPABASE_SECRET_KEY=<your-supabase-service-role-key>
 
-# Gemini AI (Primary)
+# AI Provider: gemini or cerebras
+AI_PROVIDER=gemini
+
+# Gemini
 GEMINI_API_KEY=<your-gemini-api-key>
 GEMINI_MODEL=gemini-3.8-flash
+
+# Cerebras Inference (select with AI_PROVIDER=cerebras)
+CEREBRAS_API_KEY=<your-cerebras-api-key>
+CEREBRAS_MODEL=qwen-3.8-27b
+
 LLM_TIMEOUT_SECONDS=120
 
 # Ollama AI (Local Fallback)
@@ -157,7 +166,7 @@ docker compose up --build
    - **Docker Context**: `./backend`
    - **Dockerfile Path**: `./backend/Dockerfile`
    - **Health Check Path**: `/api/v1/health`
-3. Add Environment Variables: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `GEMINI_API_KEY`, `CORS_ORIGINS`.
+3. Add Environment Variables: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `AI_PROVIDER`, the selected provider's API key (`GEMINI_API_KEY` or `CEREBRAS_API_KEY`), and `CORS_ORIGINS`.
 
 ### Frontend (Vercel)
 1. Import repository on [Vercel](https://vercel.com).
