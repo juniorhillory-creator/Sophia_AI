@@ -61,5 +61,24 @@ export const authApi = {
   isAuthenticated(): boolean {
     return !!localStorage.getItem(ACCESS_TOKEN_KEY);
   },
+
+  async googleAuth(payload: { id_token?: string; code?: string; redirect_uri?: string }): Promise<AuthResponse> {
+    const response = await apiClient.post<AuthResponse>("/auth/google", payload);
+    const { tokens } = response.data;
+    if (tokens?.access_token) {
+      localStorage.setItem(ACCESS_TOKEN_KEY, tokens.access_token);
+      localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refresh_token);
+    }
+    return response.data;
+  },
+
+  setSession(tokens: { access_token: string; refresh_token?: string }): void {
+    if (tokens.access_token) {
+      localStorage.setItem(ACCESS_TOKEN_KEY, tokens.access_token);
+    }
+    if (tokens.refresh_token) {
+      localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refresh_token);
+    }
+  },
 };
 

@@ -10,6 +10,7 @@ import {
   Link as MuiLink,
   CircularProgress,
   Container,
+  Divider,
 } from '@mui/material';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
@@ -20,10 +21,11 @@ import MailOutlineIcon from '@mui/icons-material/MailOutline';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ErrorAlert } from '../components/common/ErrorAlert';
+import { GoogleButton } from '../components/common/GoogleButton';
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register, signInWithGoogle } = useAuth();
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -32,6 +34,15 @@ export const RegisterPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    try {
+      await signInWithGoogle();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Google sign-up failed');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -222,6 +233,16 @@ export const RegisterPage: React.FC = () => {
           >
             {loading ? <CircularProgress size={24} color="inherit" /> : 'Create Account'}
           </Button>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', my: 2.5 }}>
+            <Divider sx={{ flexGrow: 1 }} />
+            <Typography variant="caption" sx={{ px: 2, color: 'text.secondary', fontWeight: 600 }}>
+              OR
+            </Typography>
+            <Divider sx={{ flexGrow: 1 }} />
+          </Box>
+
+          <GoogleButton text="Sign up with Google" onClick={handleGoogleSignIn} disabled={loading} />
 
           <Box sx={{ textAlign: 'center', mt: 3 }}>
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>

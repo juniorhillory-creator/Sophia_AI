@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { authApi, type LoginPayload, type RegisterPayload } from "../api/authApi";
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import type { User } from "../types";
 
 interface AuthContextType {
@@ -15,6 +16,8 @@ interface AuthContextType {
   ) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  setSession: (tokens: { access_token: string; refresh_token?: string }, user: User) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -25,6 +28,8 @@ const AuthContext = createContext<AuthContextType>({
   register: async () => {},
   logout: async () => {},
   refreshUser: async () => {},
+  signInWithGoogle: async () => {},
+  setSession: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -115,6 +120,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await fetchCurrentUser();
   };
 
+  const setSession = (tokens: { access_token: string; refresh_token?: string }, newUser: User) => {
+    authApi.setSession(tokens);
+    setUser(newUser);
+  };
+
+  const signInWithGoogle = async () => {
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/google/callback`,
+        },
+      });
+      if (error) throw error;
+    } else {
+      window.location.href = `${window.location.origin}/auth/google/callback`;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -125,6 +149,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         register,
         logout,
         refreshUser,
+        signInWithGoogle,
+        setSession,
       }}
     >
       {children}

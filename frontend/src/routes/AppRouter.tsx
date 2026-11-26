@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { AppLayout } from '../components/layout/AppLayout';
 import { LoginPage } from '../pages/LoginPage';
 import { RegisterPage } from '../pages/RegisterPage';
+import { GoogleCallbackPage } from '../pages/GoogleCallbackPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { MyResearchPage } from '../pages/MyResearchPage';
 import { ResearchWorkspacePage } from '../pages/ResearchWorkspacePage';
@@ -85,6 +86,7 @@ export const AppRouter: React.FC = () => {
           </PublicOnlyRoute>
         }
       />
+      <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
 
       {/* Protected Application Routes wrapped in AppLayout */}
       <Route
