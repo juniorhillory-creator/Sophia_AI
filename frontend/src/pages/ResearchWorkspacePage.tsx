@@ -124,7 +124,12 @@ export const ResearchWorkspacePage: React.FC = () => {
       sx={{
         display: "flex",
         flexDirection: "column",
-        height: "calc(100vh - 64px)",
+        height: {
+          xs: "calc(100dvh - 96px)",
+          sm: "calc(100dvh - 112px)",
+          md: "calc(100dvh - 128px)",
+        },
+        minHeight: 0,
         overflow: "hidden",
         bgcolor: "background.default",
       }}
@@ -233,6 +238,7 @@ export const ResearchWorkspacePage: React.FC = () => {
             display: "flex",
             flexDirection: "column",
             flex: 1,
+            minHeight: 0,
             overflow: "hidden",
           }}
         >
@@ -282,7 +288,15 @@ export const ResearchWorkspacePage: React.FC = () => {
             />
           </Tabs>
 
-          <Box sx={{ flex: 1, p: 1.5, overflow: "hidden" }}>
+          <Box
+            sx={{
+              display: "flex",
+              flex: 1,
+              minHeight: 0,
+              p: 1.5,
+              overflow: "hidden",
+            }}
+          >
             {mobileTab === 0 && (
               <PdfViewer
                 documentId={document.id}
@@ -311,6 +325,7 @@ export const ResearchWorkspacePage: React.FC = () => {
           sx={{
             display: "flex",
             flex: 1,
+            minHeight: 0,
             p: 2,
             gap: 2,
             overflow: "hidden",
@@ -330,9 +345,11 @@ export const ResearchWorkspacePage: React.FC = () => {
             sx={{
               flex: "1 1 50%",
               height: "100%",
+              minHeight: 0,
               minWidth: 0,
               display: "flex",
               flexDirection: "column",
+              overflow: "hidden",
             }}
           >
             <Paper
@@ -375,7 +392,7 @@ export const ResearchWorkspacePage: React.FC = () => {
               </Tabs>
             </Paper>
 
-            <Box sx={{ flex: 1, minHeight: 0 }}>
+            <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
               {rightPanelTab === 0 ? (
                 <SummaryPanel
                   documentId={document.id}

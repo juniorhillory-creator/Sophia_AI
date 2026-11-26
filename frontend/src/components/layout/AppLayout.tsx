@@ -46,6 +46,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           component="main"
           sx={{
             flexGrow: 1,
+            minHeight: 0,
             p: { xs: 2, sm: 3, md: 4 },
             width: "100%",
             boxSizing: "border-box",

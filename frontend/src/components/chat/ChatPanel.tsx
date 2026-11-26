@@ -194,6 +194,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
+        minHeight: 0,
+        minWidth: 0,
         bgcolor: 'background.paper',
         borderRadius: 2,
         border: '1px solid',
@@ -254,6 +256,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       <Box
         sx={{
           flex: 1,
+          flexBasis: 0,
+          minHeight: 0,
           overflowY: 'auto',
           p: 2.5,
           display: 'flex',
@@ -282,11 +286,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       </Box>
 
       {/* Suggested Prompts (visible when few messages) */}
-      {messages.length <= 3 && !isStreaming && (
+      {messages.length === 1 && !isStreaming && (
         <Box
           sx={{
-            px: 2.5,
-            py: 1,
+            px: { xs: 1.5, sm: 2.5 },
+            py: 0.75,
+            minWidth: 0,
             borderTop: '1px solid',
             borderColor: 'divider',
             bgcolor: (theme) =>
@@ -309,31 +314,41 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             <AutoAwesomeIcon sx={{ fontSize: 13, color: 'primary.main' }} />
             Suggested Questions:
           </Typography>
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            {SUGGESTED_PROMPTS.map((prompt) => (
-              <Chip
-                key={prompt}
-                label={prompt}
-                size="small"
-                onClick={() => handleSend(prompt)}
-                sx={{
-                  fontSize: '0.75rem',
-                  cursor: 'pointer',
-                  borderRadius: 2,
-                  bgcolor: 'background.paper',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  '&:hover': {
-                    bgcolor: (theme) =>
-                      theme.palette.mode === 'dark'
-                        ? 'rgba(99, 102, 241, 0.15)'
-                        : 'rgba(79, 70, 229, 0.08)',
-                    borderColor: 'primary.main',
-                  },
-                }}
-              />
-            ))}
-          </Stack>
+          <Box sx={{ minWidth: 0, width: '100%', overflowX: 'auto' }}>
+            <Stack
+              direction="row"
+              spacing={1}
+              useFlexGap
+              sx={{
+                flexWrap: 'nowrap',
+                '& > *': { flexShrink: 0 },
+              }}
+            >
+              {SUGGESTED_PROMPTS.map((prompt) => (
+                <Chip
+                  key={prompt}
+                  label={prompt}
+                  size="small"
+                  onClick={() => handleSend(prompt)}
+                  sx={{
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                    borderRadius: 2,
+                    bgcolor: 'background.paper',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    '&:hover': {
+                      bgcolor: (theme) =>
+                        theme.palette.mode === 'dark'
+                          ? 'rgba(99, 102, 241, 0.15)'
+                          : 'rgba(79, 70, 229, 0.08)',
+                      borderColor: 'primary.main',
+                    },
+                  }}
+                />
+              ))}
+            </Stack>
+          </Box>
         </Box>
       )}
 
