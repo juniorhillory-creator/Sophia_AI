@@ -59,6 +59,7 @@ def test_complete_empty_response_raises_app_error(monkeypatch):
 
 
 def test_complete_api_error_mapping(monkeypatch):
+    monkeypatch.setattr("time.sleep", lambda _: None)
     client = GeminiClient(api_key="test-key")
     error = APIError(504, {"error": {"message": "Timeout"}})
     monkeypatch.setattr(client._client.models, "generate_content", MagicMock(side_effect=error))
@@ -71,6 +72,58 @@ def test_complete_api_error_mapping(monkeypatch):
         )
     assert exc_info.value.code == "model_timeout"
     assert exc_info.value.status_code == 504
+
+
+def test_complete_503_rotates_model_and_succeeds(monkeypatch):
+    monkeypatch.setattr("time.sleep", lambda _: None)
+    client = GeminiClient(api_key="test-key", model="gemini-3.8-flash")
+    overloaded_err = APIError(503, {"error": {"message": "This model is currently experiencing high demand."}})
+    
+    success_response = MagicMock()
+    success_response.text = "Summary content."
+
+    def fake_generate_content(*args, **kwargs):
+        if kwargs.get("model") == "gemini-3.8-flash":
+            raise overloaded_err
+        return success_response
+
+    monkeypatch.setattr(client._client.models, "generate_content", fake_generate_content)
+
+    result = client.complete(
+        [{"role": "user", "content": "Summarize this paper"}],
+        json_schema=None,
+        timeout=30.0,
+    )
+    assert result == "Summary content."
+    assert client._model != "gemini-3.8-flash"
+
+
+def test_complete_transient_retry_succeeds_on_second_attempt(monkeypatch):
+    monkeypatch.setattr("time.sleep", lambda _: None)
+    client = GeminiClient(api_key="test-key", model="gemini-3.8-flash")
+    overloaded_err = APIError(503, {"error": {"message": "High demand"}})
+
+    success_response = MagicMock()
+    success_response.text = "Recovered after retry."
+
+    call_count = 0
+    def fake_generate_content(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise overloaded_err
+        return success_response
+
+    monkeypatch.setattr(client._client.models, "generate_content", fake_generate_content)
+
+    result = client.complete(
+        [{"role": "user", "content": "Hi"}],
+        json_schema=None,
+        timeout=30.0,
+    )
+    assert result == "Recovered after retry."
+    assert call_count == 2
+    assert client._model == "gemini-3.8-flash"
 
 
 @pytest.mark.anyio
@@ -117,4 +170,9 @@ def test_map_error_status_codes():
     err_auth = _map_error(APIError(401, {"error": "Unauthorized"}))
     assert err_auth.code == "model_unavailable"
     assert err_auth.status_code == 503
+
+    err_503 = _map_error(APIError(503, {"error": {"message": "This model is currently experiencing high demand."}}))
+    assert err_503.code == "model_unavailable"
+    assert err_503.status_code == 503
+    assert "high demand" in err_503.message.lower()
 
