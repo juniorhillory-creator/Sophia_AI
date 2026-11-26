@@ -68,7 +68,8 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.8-flash"
     cerebras_api_key: str = ""
-    cerebras_model: str = "qwen-3.8-27b"
+    cerebras_summary_model: str = "qwen-3.8-27b"
+    cerebras_chat_model: str = "gpt-oss-120b"
     llm_timeout_seconds: float = 120
     embedding_model: str = "all-MiniLM-L6-v2"
     chroma_path: str = "data/chroma"
@@ -115,12 +116,12 @@ class Settings(BaseSettings):
             raise ValueError("ai_provider must be 'gemini' or 'cerebras'")
         return normalized
 
-    @field_validator("cerebras_model")
+    @field_validator("cerebras_summary_model", "cerebras_chat_model")
     @classmethod
     def require_cerebras_model(cls, value: str) -> str:
         stripped = value.strip()
         if not stripped:
-            raise ValueError("cerebras_model must not be blank")
+            raise ValueError("Cerebras model settings must not be blank")
         return stripped
 
     @field_validator("cors_origins", mode="before")

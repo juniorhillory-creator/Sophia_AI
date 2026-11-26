@@ -62,7 +62,16 @@ def create_app(
     app.state.settings = resolved
     app.state.sessions = SessionStore()
     if resolved.ai_provider == "cerebras":
-        app.state.llm = CerebrasClient(resolved.cerebras_api_key, resolved.cerebras_model)
+        app.state.summary_llm = CerebrasClient(
+            resolved.cerebras_api_key,
+            resolved.cerebras_summary_model,
+        )
+        app.state.chat_llm = CerebrasClient(
+            resolved.cerebras_api_key,
+            resolved.cerebras_chat_model,
+        )
+        # Preserve the shared client for existing consumers such as manuscript tools.
+        app.state.llm = app.state.chat_llm
     else:
         app.state.llm = GeminiClient(resolved.gemini_api_key, resolved.gemini_model)
     app.state.rag = RagService(

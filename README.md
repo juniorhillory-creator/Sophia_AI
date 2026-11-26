@@ -13,7 +13,7 @@ Sophia AI is a privacy-first, AI-powered research workspace. It enables research
   - PDF Extraction: PyMuPDF (`fitz`)
   - Vector Embeddings: SentenceTransformers (`all-MiniLM-L6-v2`)
   - Vector Store: ChromaDB
-  - Selectable LLM: Google Gemini or Cerebras Inference (`qwen-3.8-27b` by default)
+  - Selectable LLM: Google Gemini or Cerebras Inference (Qwen 3.8 27B for summaries, GPT-OSS 120B for chat)
   - Local Fallback LLM: Ollama (`llama3.2`)
 
 ---
@@ -68,7 +68,8 @@ GEMINI_MODEL=gemini-3.8-flash
 
 # Cerebras Inference (select with AI_PROVIDER=cerebras)
 CEREBRAS_API_KEY=<your-cerebras-api-key>
-CEREBRAS_MODEL=qwen-3.8-27b
+CEREBRAS_SUMMARY_MODEL=qwen-3.8-27b
+CEREBRAS_CHAT_MODEL=gpt-oss-120b
 
 LLM_TIMEOUT_SECONDS=120
 

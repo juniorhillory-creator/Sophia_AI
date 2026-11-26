@@ -19,7 +19,8 @@ from app.db.session import get_database
 from app.dependencies import (
     get_current_user,
     get_ingestion,
-    get_llm,
+    get_chat_llm,
+    get_summary_llm,
     get_rag,
     get_sessions,
     get_settings,
@@ -323,7 +324,7 @@ async def create_summary(
     document_id: UUID,
     user_id: UUID = Depends(get_current_user),
     sessions: SessionStore = Depends(get_sessions),
-    llm: Llm = Depends(get_llm),
+    llm: Llm = Depends(get_summary_llm),
     settings: Settings = Depends(get_settings),
 ) -> PaperSummary:
     """Generate and cache summary for a document."""
@@ -446,7 +447,7 @@ async def ask_question(
     user_id: UUID = Depends(get_current_user),
     sessions: SessionStore = Depends(get_sessions),
     rag: RagService = Depends(get_rag),
-    llm: Llm = Depends(get_llm),
+    llm: Llm = Depends(get_chat_llm),
     settings: Settings = Depends(get_settings),
 ) -> ChatResponse:
     """Answer from retrieved chunks. Pages come from those chunks, not from the model."""
@@ -467,7 +468,7 @@ async def ask_question_stream(
     user_id: UUID = Depends(get_current_user),
     sessions: SessionStore = Depends(get_sessions),
     rag: RagService = Depends(get_rag),
-    llm: Llm = Depends(get_llm),
+    llm: Llm = Depends(get_chat_llm),
     settings: Settings = Depends(get_settings),
 ):
     """Stream answer chunks via Server-Sent Events."""
