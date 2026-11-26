@@ -133,3 +133,15 @@ def get_ingestion(request: Request, user_id: UUID = Depends(get_current_user)) -
 
 def get_llm(request: Request) -> Llm:
     return request.app.state.llm
+
+
+def get_summary_llm(request: Request) -> Llm:
+    if request.app.state.settings.ai_provider == "cerebras":
+        return request.app.state.summary_llm
+    return get_llm(request)
+
+
+def get_chat_llm(request: Request) -> Llm:
+    if request.app.state.settings.ai_provider == "cerebras":
+        return request.app.state.chat_llm
+    return get_llm(request)

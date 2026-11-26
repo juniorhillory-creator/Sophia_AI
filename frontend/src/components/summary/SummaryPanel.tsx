@@ -71,6 +71,8 @@ const SectionCard: React.FC<SectionCardProps> = ({
       sx={{
         border: 1,
         borderColor: "divider",
+        flexShrink: 0,
+        minWidth: 0,
         transition: "all 0.15s ease",
         "&:hover": {
           borderColor: color,
@@ -324,7 +326,19 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
   }
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 2.5,
+        height: "100%",
+        minHeight: 0,
+        overflowY: "auto",
+        overscrollBehaviorY: "contain",
+        pr: 0.5,
+        pb: 1,
+      }}
+    >
       {/* Action Header */}
       <Box
         sx={{

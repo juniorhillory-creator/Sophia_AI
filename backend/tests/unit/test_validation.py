@@ -44,6 +44,19 @@ def test_gemini_defaults_and_validation() -> None:
         Settings(llm_timeout_seconds=-5)
 
 
+def test_ai_provider_and_cerebras_defaults() -> None:
+    assert Settings().ai_provider == "gemini"
+    assert Settings().cerebras_summary_model == "qwen-3.8-27b"
+    assert Settings().cerebras_chat_model == "gpt-oss-120b"
+    assert Settings(ai_provider=" CEREBRAS ").ai_provider == "cerebras"
+    with pytest.raises(ValidationError):
+        Settings(ai_provider="unknown")
+    with pytest.raises(ValidationError):
+        Settings(cerebras_summary_model="   ")
+    with pytest.raises(ValidationError):
+        Settings(cerebras_chat_model="   ")
+
+
 def test_cors_origins_accept_a_comma_separated_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CORS_ORIGINS", "http://a.test, http://b.test")
     settings = Settings()

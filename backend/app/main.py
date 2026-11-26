@@ -15,6 +15,7 @@ from app.core.settings import Settings, get_settings
 from app.core.supabase import get_supabase_client, is_supabase_configured
 from app.db.session import get_database
 from app.infrastructure.chroma_store import ChromaStore
+from app.infrastructure.cerebras import CerebrasClient
 from app.infrastructure.embeddings import Embedder, SentenceTransformerEmbedder
 from app.infrastructure.gemini import GeminiClient
 from app.services.rag import RagService
@@ -60,7 +61,19 @@ def create_app(
     app = FastAPI(title="Sophia AI", version="0.1.0", lifespan=lifespan)
     app.state.settings = resolved
     app.state.sessions = SessionStore()
-    app.state.llm = GeminiClient(resolved.gemini_api_key, resolved.gemini_model)
+    if resolved.ai_provider == "cerebras":
+        app.state.summary_llm = CerebrasClient(
+            resolved.cerebras_api_key,
+            resolved.cerebras_summary_model,
+        )
+        app.state.chat_llm = CerebrasClient(
+            resolved.cerebras_api_key,
+            resolved.cerebras_chat_model,
+        )
+        # Preserve the shared client for existing consumers such as manuscript tools.
+        app.state.llm = app.state.chat_llm
+    else:
+        app.state.llm = GeminiClient(resolved.gemini_api_key, resolved.gemini_model)
     app.state.rag = RagService(
         embedder or SentenceTransformerEmbedder(resolved.embedding_model),
         vectors or ChromaStore.open(resolved.chroma_path),
