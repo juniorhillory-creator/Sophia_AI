@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import logoImg from '../assets/logo.png';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
@@ -81,18 +81,16 @@ export const LoginPage: React.FC = () => {
         {/* Brand header */}
         <Box sx={{ textAlign: 'center', mb: 3.5 }}>
           <Box
+            component="img"
+            src={logoImg}
+            alt="Sophia AI Logo"
             sx={{
-              display: 'inline-flex',
-              p: 1.5,
-              borderRadius: 3,
-              background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)',
-              color: '#ffffff',
-              boxShadow: '0 4px 14px rgba(79, 70, 229, 0.35)',
+              width: 56,
+              height: 56,
+              objectFit: 'contain',
               mb: 2,
             }}
-          >
-            <AutoAwesomeIcon sx={{ fontSize: 28 }} />
-          </Box>
+          />
           <Typography
             variant="h4"
             component="h1"

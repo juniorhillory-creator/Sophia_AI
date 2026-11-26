@@ -12,10 +12,10 @@ import Divider from "@mui/material/Divider";
 import DashboardIcon from "@mui/icons-material/DashboardRounded";
 import MenuBookIcon from "@mui/icons-material/MenuBookRounded";
 import SettingsIcon from "@mui/icons-material/SettingsRounded";
-import AutoAwesomeIcon from "@mui/icons-material/AutoAwesomeRounded";
 import CloudUploadIcon from "@mui/icons-material/CloudUploadRounded";
 import Button from "@mui/material/Button";
 import { alpha, useTheme } from "@mui/material/styles";
+import logoImg from "../../assets/logo.png";
 
 export const DRAWER_WIDTH = 260;
 
@@ -60,20 +60,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Brand Header */}
       <Box sx={{ p: 3, display: "flex", alignItems: "center", gap: 1.5 }}>
         <Box
+          component="img"
+          src={logoImg}
+          alt="Sophia AI Logo"
           sx={{
-            width: 38,
-            height: 38,
+            width: 40,
+            height: 40,
             borderRadius: 2,
-            bgcolor: "primary.main",
-            color: "primary.contrastText",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.35)}`,
+            objectFit: "contain",
           }}
-        >
-          <AutoAwesomeIcon sx={{ fontSize: 22 }} />
-        </Box>
+        />
         <Box>
           <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.1 }}>
             Sophia AI
