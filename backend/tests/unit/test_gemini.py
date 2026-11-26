@@ -73,7 +73,7 @@ def test_complete_api_error_mapping(monkeypatch):
     assert exc_info.value.status_code == 504
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_stream_success(monkeypatch):
     client = GeminiClient(api_key="test-key")
 

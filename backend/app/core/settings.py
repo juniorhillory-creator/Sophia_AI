@@ -58,12 +58,14 @@ class Settings(BaseSettings):
         default_factory=lambda: [
             "http://localhost:5173",
             "http://localhost:5174",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
             "https://sophia-ai-kappa.vercel.app",
         ]
     )
     log_level: str = "INFO"
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.8-flash"
     llm_timeout_seconds: float = 120
     embedding_model: str = "all-MiniLM-L6-v2"
     chroma_path: str = "data/chroma"

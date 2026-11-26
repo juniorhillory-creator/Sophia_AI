@@ -1,28 +1,21 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { googleAuth } from "../api/auth";
-import { useAuth } from "../contexts/AuthContext";
-import { AuthLayout } from "../components/AuthLayout";
+import Box from "@mui/material/Box";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Typography from "@mui/material/Typography";
+import Button from "@mui/material/Button";
+import Alert from "@mui/material/Alert";
+import CircularProgress from "@mui/material/CircularProgress";
+import Container from "@mui/material/Container";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { authApi } from "../api/authApi";
+import { useAuth } from "../context/AuthContext";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
+import type { User } from "../types";
 
-function parseJwt(token: string): any {
-  try {
-    const base64Url = token.split(".")[1];
-    if (!base64Url) return null;
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-    return JSON.parse(jsonPayload);
-  } catch {
-    return null;
-  }
-}
-
-export function GoogleCallbackPage() {
+export const GoogleCallbackPage: React.FC = () => {
   const navigate = useNavigate();
   const { setSession } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -30,23 +23,8 @@ export function GoogleCallbackPage() {
   const handledRef = useRef(false);
 
   useEffect(() => {
-    // 1. Extract params from both search query and hash fragment
     const searchParams = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-
-    let hashAccessToken = hashParams.get("access_token") || searchParams.get("access_token");
-    let hashRefreshToken = hashParams.get("refresh_token") || searchParams.get("refresh_token") || "";
-
-    if (!hashAccessToken && window.location.hash.includes("access_token=")) {
-      const match = window.location.hash.match(/access_token=([^&]+)/);
-      if (match) {
-        hashAccessToken = decodeURIComponent(match[1]);
-      }
-      const refreshMatch = window.location.hash.match(/refresh_token=([^&]+)/);
-      if (refreshMatch) {
-        hashRefreshToken = decodeURIComponent(refreshMatch[1]);
-      }
-    }
 
     const errorParam = searchParams.get("error") || hashParams.get("error");
     const errorDescription =
@@ -63,7 +41,7 @@ export function GoogleCallbackPage() {
         (errorDescription && errorDescription.toLowerCase().includes("validation failed"));
       if (isNotEnabled) {
         setError(
-          "Google Sign-In is not currently enabled in your Supabase project. To enable it, activate the Google provider in your Supabase Dashboard (Authentication > Providers > Google) with Google Cloud credentials, or sign in using username/password.",
+          "Google Sign-In is not currently enabled in your Supabase project. To enable it, activate the Google provider in your Supabase Dashboard (Authentication > Providers > Google) with Google Cloud credentials, or sign in using username/password."
         );
       } else {
         setError(`Google sign-in was cancelled or failed: ${errorDescription || errorParam}`);
@@ -77,73 +55,37 @@ export function GoogleCallbackPage() {
 
       const sbUser = session.user;
       const now = new Date().toISOString();
+      const userObj: User = {
+        id: sbUser.id,
+        username: sbUser.user_metadata?.username || sbUser.email?.split("@")[0] || "user",
+        email: sbUser.email || "",
+        full_name: sbUser.user_metadata?.full_name || null,
+        avatar_url: sbUser.user_metadata?.avatar_url || null,
+        is_active: true,
+        is_verified: true,
+        created_at: now,
+        updated_at: now,
+      };
+
       setSession(
         {
           access_token: session.access_token,
           refresh_token: session.refresh_token || "",
         },
-        {
-          id: sbUser.id,
-          username: sbUser.user_metadata?.username || sbUser.email?.split("@")[0] || "user",
-          email: sbUser.email || "",
-          full_name: sbUser.user_metadata?.full_name || sbUser.user_metadata?.name || null,
-          avatar_url: sbUser.user_metadata?.avatar_url || sbUser.user_metadata?.picture || null,
-          is_active: true,
-          is_verified: true,
-          created_at: now,
-          updated_at: now,
-        },
+        userObj
       );
-      window.location.replace("/dashboard");
+      window.location.replace("/");
     };
 
-    // 2. Direct token extraction from URL hash: if hashAccessToken exists, sign in immediately!
-    if (hashAccessToken) {
-      const payload = parseJwt(hashAccessToken);
-      if (payload?.sub || payload?.email) {
-        const now = new Date().toISOString();
-        const user = {
-          id: payload.sub || "user",
-          username:
-            payload.user_metadata?.username ||
-            payload.user_metadata?.name?.replace(/\s+/g, "_").toLowerCase() ||
-            payload.email?.split("@")[0] ||
-            "user",
-          email: payload.email || "",
-          full_name: payload.user_metadata?.full_name || payload.user_metadata?.name || null,
-          avatar_url: payload.user_metadata?.avatar_url || payload.user_metadata?.picture || null,
-          is_active: true,
-          is_verified: true,
-          created_at: now,
-          updated_at: now,
-        };
-
-        if (isSupabaseConfigured && hashRefreshToken) {
-          void supabase.auth.setSession({
-            access_token: hashAccessToken,
-            refresh_token: hashRefreshToken,
-          }).catch(() => {});
-        }
-
-        handleSessionSuccess({
-          access_token: hashAccessToken,
-          refresh_token: hashRefreshToken,
-          user,
-        });
-        return;
-      }
-    }
-
     if (!isSupabaseConfigured) {
-      // Direct backend OAuth fallback if Supabase is not configured
       const code = searchParams.get("code") || hashParams.get("code");
       if (code) {
         void (async () => {
           try {
             const redirect_uri = window.location.origin + "/auth/google/callback";
-            const response = await googleAuth({ code, redirect_uri });
+            const response = await authApi.googleAuth({ code, redirect_uri });
             setSession(response.tokens, response.user);
-            window.location.replace("/dashboard");
+            window.location.replace("/");
           } catch (err: unknown) {
             setLoading(false);
             setError(err instanceof Error ? err.message : "Failed to complete Google sign-in.");
@@ -156,7 +98,7 @@ export function GoogleCallbackPage() {
       return;
     }
 
-    // 3. Set up Supabase auth state change listener to catch token events
+    // Supabase auth state change listener
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
@@ -168,7 +110,6 @@ export function GoogleCallbackPage() {
     let timeoutId: number | undefined;
 
     void (async () => {
-      // 4. Check if session is already stored or detected in URL
       try {
         const { data } = await supabase.auth.getSession();
         if (data?.session?.user) {
@@ -179,11 +120,42 @@ export function GoogleCallbackPage() {
         console.warn("getSession error:", err);
       }
 
-      // 5. Check query parameters for authorization code (PKCE flow)
+      // Check hash parameters (implicit flow)
+      const hashAccessToken = hashParams.get("access_token") || searchParams.get("access_token");
+      const hashRefreshToken = hashParams.get("refresh_token") || searchParams.get("refresh_token") || "";
+
+      if (hashAccessToken) {
+        try {
+          const { data, error: setErr } = await supabase.auth.setSession({
+            access_token: hashAccessToken,
+            refresh_token: hashRefreshToken,
+          });
+          if (data?.session?.user) {
+            handleSessionSuccess(data.session);
+            return;
+          }
+          if (setErr) {
+            console.warn("setSession error from hash:", setErr);
+          }
+          const { data: userData } = await supabase.auth.getUser(hashAccessToken);
+          if (userData?.user) {
+            handleSessionSuccess({
+              access_token: hashAccessToken,
+              refresh_token: hashRefreshToken,
+              user: userData.user,
+            });
+            return;
+          }
+        } catch (userErr) {
+          console.warn("getUser error from hash token:", userErr);
+        }
+      }
+
+      // Check query parameters for authorization code (PKCE flow)
       const code = searchParams.get("code") || hashParams.get("code");
       if (code) {
         try {
-          const { data, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+          const { data } = await supabase.auth.exchangeCodeForSession(code);
           if (data?.session?.user) {
             handleSessionSuccess(data.session);
             return;
@@ -195,16 +167,16 @@ export function GoogleCallbackPage() {
         // Fallback to backend Google auth endpoint
         try {
           const redirect_uri = window.location.origin + "/auth/google/callback";
-          const response = await googleAuth({ code, redirect_uri });
+          const response = await authApi.googleAuth({ code, redirect_uri });
           setSession(response.tokens, response.user);
-          window.location.replace("/dashboard");
+          window.location.replace("/");
           return;
         } catch (err: unknown) {
           setLoading(false);
           const msg = err instanceof Error ? err.message : "Failed to complete Google sign-in. Please try again.";
           if (msg.toLowerCase().includes("not implemented") || msg.toLowerCase().includes("not configured")) {
             setError(
-              "Google OAuth is not configured on this project. Please configure Google OAuth credentials or sign in with your username/email and password.",
+              "Google OAuth is not configured on this project. Please configure Google OAuth credentials or sign in with your username/email and password."
             );
           } else {
             setError(msg);
@@ -213,15 +185,14 @@ export function GoogleCallbackPage() {
         }
       }
 
-      // 6. Give onAuthStateChange a grace period to process background URL tokens
       timeoutId = window.setTimeout(() => {
         if (!handledRef.current) {
           setLoading(false);
           setError(
-            "No authorization code received from Google. If you are using Supabase, please verify that 'https://sophia-ai-kappa.vercel.app/**' is added to your Redirect URLs in the Supabase Dashboard (Authentication > URL Configuration).",
+            "No authorization code received from Google. If using Supabase, please verify that your Redirect URLs in the Supabase Dashboard include this origin."
           );
         }
-      }, 2000);
+      }, 2500);
     })();
 
     return () => {
@@ -232,50 +203,52 @@ export function GoogleCallbackPage() {
     };
   }, [navigate, setSession]);
 
-  if (loading) {
-    return (
-      <AuthLayout>
-        <div className="bg-white rounded-2xl border border-stone-200 shadow-card p-6 sm:p-8 animate-fade-in text-center">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-light text-brand mb-4" aria-hidden="true">
-            <svg className="h-7 w-7 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-          </div>
-          <p className="text-sm text-stone-600">Completing Google sign-in…</p>
-        </div>
-      </AuthLayout>
-    );
-  }
-
   return (
-    <AuthLayout>
-      <div className="bg-white rounded-2xl border border-stone-200 shadow-card p-6 sm:p-8 animate-fade-in text-center">
-        <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-error-light text-error mb-4" aria-hidden="true">
-          <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-        </div>
-        <h2 className="text-xl font-bold tracking-tight text-stone-900">Sign-in failed</h2>
-        <p className="mt-2 text-sm text-stone-600 leading-relaxed">{error}</p>
-        
-        {/* Diagnostic info to debug OAuth redirects */}
-        <div className="mt-4 p-3 bg-stone-50 border border-stone-200 rounded-lg text-left text-xs font-mono text-stone-600 break-all space-y-1">
-          <div><span className="font-semibold text-stone-800">Origin:</span> {window.location.origin}</div>
-          <div><span className="font-semibold text-stone-800">Search params:</span> {window.location.search || "(empty)"}</div>
-          <div><span className="font-semibold text-stone-800">Hash fragment:</span> {window.location.hash ? `${window.location.hash.slice(0, 30)}...` : "(empty)"}</div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => navigate("/login")}
-          className="mt-6 w-full py-2.5 text-sm font-medium text-white bg-brand rounded-lg hover:bg-brand-dark transition-colors focus:ring-2 focus:ring-brand focus:ring-offset-2"
-        >
-          Back to sign in
-        </button>
-      </div>
-    </AuthLayout>
+    <Container maxWidth="sm" sx={{ py: 8 }}>
+      <Card
+        elevation={0}
+        sx={{
+          borderRadius: 3,
+          border: 1,
+          borderColor: "divider",
+          p: { xs: 2, sm: 4 },
+          textAlign: "center",
+        }}
+      >
+        <CardContent>
+          {loading ? (
+            <Box sx={{ py: 4, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              <CircularProgress size={44} sx={{ color: "primary.main" }} />
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Completing Google sign-in…
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Verifying your credentials and setting up your workspace.
+              </Typography>
+            </Box>
+          ) : (
+            <Box sx={{ py: 2, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              <ErrorOutlineIcon color="error" sx={{ fontSize: 52 }} />
+              <Typography variant="h5" sx={{ fontWeight: 800 }}>
+                Sign-in failed
+              </Typography>
+              {error && (
+                <Alert severity="error" sx={{ width: "100%", textAlign: "left", mt: 1 }}>
+                  {error}
+                </Alert>
+              )}
+              <Button
+                variant="contained"
+                startIcon={<ArrowBackIcon />}
+                onClick={() => navigate("/login")}
+                sx={{ mt: 3, fontWeight: 600, py: 1.2, px: 3 }}
+              >
+                Back to Sign In
+              </Button>
+            </Box>
+          )}
+        </CardContent>
+      </Card>
+    </Container>
   );
-}
+};

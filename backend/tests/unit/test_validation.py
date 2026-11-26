@@ -33,7 +33,7 @@ def test_retrieval_defaults_stay_in_range() -> None:
 
 
 def test_gemini_defaults_and_validation() -> None:
-    assert Settings.model_fields["gemini_model"].default == "gemini-2.5-flash"
+    assert Settings.model_fields["gemini_model"].default == "gemini-3.8-flash"
     assert Settings.model_fields["gemini_api_key"].default == ""
     assert Settings.model_fields["llm_timeout_seconds"].default == 120
     with pytest.raises(ValidationError):

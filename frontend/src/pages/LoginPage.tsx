@@ -1,155 +1,219 @@
-import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
-import { AuthLayout } from "../components/AuthLayout";
-import { PasswordInput } from "../components/PasswordInput";
-import { GoogleButton } from "../components/GoogleButton";
-import { supabase, isSupabaseConfigured } from "../lib/supabase";
+import React, { useState } from 'react';
+import {
+  Box,
+  Typography,
+  TextField,
+  Button,
+  Paper,
+  InputAdornment,
+  IconButton,
+  Link as MuiLink,
+  CircularProgress,
+  Container,
+  Divider,
+} from '@mui/material';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import logoImg from '../assets/logo.png';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { ErrorAlert } from '../components/common/ErrorAlert';
+import { GoogleButton } from '../components/common/GoogleButton';
 
-export function LoginPage() {
+export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { login, isLoading, error, clearError } = useAuth();
+  const { login, signInWithGoogle } = useAuth();
 
-  const [usernameOrEmail, setUsernameOrEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [googleError, setGoogleError] = useState<string | null>(null);
+  const [usernameOrEmail, setUsernameOrEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/";
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setSubmitting(true);
-    clearError();
-    setGoogleError(null);
+  const handleGoogleSignIn = async () => {
+    setError(null);
     try {
-      await login({ username_or_email: usernameOrEmail.trim(), password });
-      navigate(from, { replace: true });
-    } catch {
-      // Error is captured and set by AuthContext
-    } finally {
-      setSubmitting(false);
+      await signInWithGoogle();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Google sign-in failed');
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setGoogleError(null);
-    clearError();
-    if (isSupabaseConfigured) {
-      try {
-        const { error: sbError } = await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo: `${window.location.origin}/auth/google/callback`,
-          },
-        });
-        if (sbError) {
-          setGoogleError(`Google sign-in error: ${sbError.message}`);
-        }
-      } catch (err) {
-        setGoogleError("Unable to initiate Google sign-in. Please try again or use password.");
-      }
-    } else {
-      setGoogleError("Google OAuth is not configured on this environment. Please sign in with username/email and password.");
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!usernameOrEmail.trim() || !password) {
+      setError('Please provide your username/email and password.');
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+    try {
+      await login(usernameOrEmail.trim(), password);
+      navigate('/');
+    } catch (err: unknown) {
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : 'Login failed. Please check your credentials.';
+      setError(errorMsg);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <AuthLayout>
-      <div className="bg-white rounded-2xl border border-stone-200 shadow-card p-6 sm:p-8 animate-fade-in">
-        <div className="mb-8 text-center">
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-light p-2.5 mb-4 shadow-sm" aria-hidden="true">
-            <img src="/logo-icon.png" alt="Sophia AI Logo" className="h-full w-full object-contain" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-stone-900">Welcome back</h1>
-          <p className="mt-2 text-sm text-stone-600">Sign in to access your research papers</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-stone-700">Username or email</label>
-            <input
-              type="text"
-              value={usernameOrEmail}
-              onChange={(event) => {
-                setUsernameOrEmail(event.target.value);
-                if (error) clearError();
-              }}
-              placeholder="Enter your username or email"
-              className="w-full border border-stone-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand focus:ring-offset-2 rounded-lg disabled:bg-stone-50 disabled:text-stone-500"
-              required
-              autoComplete="username"
-              disabled={submitting || isLoading}
-            />
-          </div>
-
-          <PasswordInput
-            value={password}
-            onChange={(val) => {
-              setPassword(val);
-              if (error) clearError();
+    <Container
+      maxWidth="sm"
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        py: 4,
+      }}
+    >
+      <Paper
+        elevation={0}
+        sx={{
+          p: { xs: 3, sm: 5 },
+          width: '100%',
+          borderRadius: 3.5,
+          border: '1px solid',
+          borderColor: 'divider',
+          boxShadow: (theme) =>
+            theme.palette.mode === 'dark'
+              ? '0 10px 30px rgba(0, 0, 0, 0.4)'
+              : '0 10px 30px rgba(79, 70, 229, 0.08)',
+        }}
+      >
+        {/* Brand header */}
+        <Box sx={{ textAlign: 'center', mb: 3.5 }}>
+          <Box
+            component="img"
+            src={logoImg}
+            alt="Sophia AI Logo"
+            sx={{
+              width: 56,
+              height: 56,
+              objectFit: 'contain',
+              mb: 2,
             }}
-            disabled={submitting || isLoading}
-            error={error ?? undefined}
           />
-
-          <div className="flex items-center justify-between">
-            <label className="text-sm text-stone-600 cursor-pointer flex items-center gap-1.5">
-              <input type="checkbox" className="rounded border-stone-300 text-brand focus:ring-brand" /> Remember me
-            </label>
-            <a href="/forgot-password" className="text-sm font-medium text-brand hover:text-brand-dark hover:underline">
-              Forgot password?
-            </a>
-          </div>
-
-          <button
-            type="submit"
-            disabled={submitting || isLoading}
-            className="w-full py-2.5 text-base font-medium text-white bg-brand rounded-lg hover:bg-brand-dark transition-colors focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          <Typography
+            variant="h4"
+            component="h1"
+            sx={{ fontWeight: 800, letterSpacing: '-0.02em', mb: 0.5 }}
           >
-            {submitting || isLoading ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
+            Welcome to Sophia AI
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            Sign in to access your research papers, structured summaries, and RAG chat.
+          </Typography>
+        </Box>
 
-        {(error || googleError) && (
-          <div className="mt-4 p-3 rounded-lg bg-error-light border border-error/20 text-sm text-error flex items-start justify-between gap-2">
-            <span>{error || googleError}</span>
-            <button
-              type="button"
-              onClick={() => {
-                clearError();
-                setGoogleError(null);
-              }}
-              className="text-error hover:text-red-800 text-xs font-semibold shrink-0"
-            >
-              Dismiss
-            </button>
-          </div>
+        {error && (
+          <Box sx={{ mb: 3 }}>
+            <ErrorAlert error={error} onDismiss={() => setError(null)} />
+          </Box>
         )}
 
-        <div className="mt-6">
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-stone-200"></span>
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-stone-400 font-medium">Or continue with</span>
-            </div>
-          </div>
+        {/* Login form */}
+        <Box component="form" onSubmit={handleSubmit}>
+          <TextField
+            fullWidth
+            label="Username or Email"
+            value={usernameOrEmail}
+            onChange={(e) => setUsernameOrEmail(e.target.value)}
+            disabled={loading}
+            autoComplete="username"
+            autoFocus
+            sx={{ mb: 2.5 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <PersonOutlineIcon sx={{ color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+            }}
+          />
 
-          <div className="mt-4">
-            <GoogleButton onClick={handleGoogleSignIn} disabled={submitting || isLoading} />
-          </div>
+          <TextField
+            fullWidth
+            label="Password"
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={loading}
+            autoComplete="current-password"
+            sx={{ mb: 3 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <LockOutlinedIcon sx={{ color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="toggle password visibility"
+                    onClick={() => setShowPassword(!showPassword)}
+                    edge="end"
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
 
-          <p className="mt-6 text-center text-sm text-stone-600">
-            Don't have an account?{" "}
-            <a href="/register" className="font-semibold text-brand hover:text-brand-dark hover:underline">
-              Create account
-            </a>
-          </p>
-        </div>
-      </div>
-    </AuthLayout>
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            size="large"
+            disabled={loading}
+            sx={{
+              py: 1.4,
+              fontSize: '0.95rem',
+              fontWeight: 700,
+              boxShadow: '0 4px 14px rgba(79, 70, 229, 0.35)',
+            }}
+          >
+            {loading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
+          </Button>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', my: 2.5 }}>
+            <Divider sx={{ flexGrow: 1 }} />
+            <Typography variant="caption" sx={{ px: 2, color: 'text.secondary', fontWeight: 600 }}>
+              OR
+            </Typography>
+            <Divider sx={{ flexGrow: 1 }} />
+          </Box>
+
+          <GoogleButton onClick={handleGoogleSignIn} disabled={loading} />
+
+          <Box sx={{ textAlign: 'center', mt: 3 }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              Don't have an account?{' '}
+              <MuiLink
+                component={RouterLink}
+                to="/register"
+                sx={{
+                  color: 'primary.main',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  '&:hover': { textDecoration: 'underline' },
+                }}
+              >
+                Create one now
+              </MuiLink>
+            </Typography>
+          </Box>
+        </Box>
+      </Paper>
+    </Container>
   );
-}
+};

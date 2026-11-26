@@ -1,7 +1,7 @@
 services:
   - type: web
     name: sophia-ai-backend
-    env: docker
+    runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     plan: free
@@ -17,7 +17,7 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-2.5-flash
+        value: gemini-3.8-flash
       - key: LLM_TIMEOUT_SECONDS
         value: "120"
       - key: CORS_ORIGINS

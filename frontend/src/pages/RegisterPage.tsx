@@ -1,267 +1,268 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
-import { AuthLayout } from "../components/AuthLayout";
-import { PasswordInput } from "../components/PasswordInput";
-import { GoogleButton } from "../components/GoogleButton";
-import { supabase, isSupabaseConfigured } from "../lib/supabase";
+import React, { useState } from 'react';
+import {
+  Box,
+  Typography,
+  TextField,
+  Button,
+  Paper,
+  InputAdornment,
+  IconButton,
+  Link as MuiLink,
+  CircularProgress,
+  Container,
+  Divider,
+} from '@mui/material';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import logoImg from '../assets/logo.png';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
+import MailOutlineIcon from '@mui/icons-material/MailOutline';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { ErrorAlert } from '../components/common/ErrorAlert';
+import { GoogleButton } from '../components/common/GoogleButton';
 
-const PASSWORD_REQUIREMENTS = [
-  {
-    label: "At least 8 characters",
-    test: (password: string) => password.length >= 8,
-  },
-  {
-    label: "One uppercase letter",
-    test: (password: string) => /[A-Z]/.test(password),
-  },
-  {
-    label: "One lowercase letter",
-    test: (password: string) => /[a-z]/.test(password),
-  },
-  { label: "One number", test: (password: string) => /[0-9]/.test(password) },
-];
-
-export function RegisterPage() {
+export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
-  const { register, isLoading, error, clearError } = useAuth();
+  const { register, signInWithGoogle } = useAuth();
 
-  const [form, setForm] = useState({
-    username: "",
-    email: "",
-    password: "",
-    confirm_password: "",
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [googleError, setGoogleError] = useState<string | null>(null);
-
-  const handleInputChange = (field: string, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-    if (validationError) setValidationError(null);
-    if (error) clearError();
-  };
-
-  const validateForm = (): string | null => {
-    if (!form.username.trim()) return "Username is required.";
-    if (form.username.trim().length < 3)
-      return "Username must be at least 3 characters.";
-    if (!form.email.trim()) return "Email is required.";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
-      return "Please enter a valid email address.";
-    if (!form.password) return "Password is required.";
-    if (form.password.length < 8)
-      return "Password must be at least 8 characters.";
-    if (form.password !== form.confirm_password)
-      return "Passwords do not match.";
-    return null;
-  };
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setSubmitting(true);
-    clearError();
-    setValidationError(null);
-    setGoogleError(null);
-    const valErr = validateForm();
-    if (valErr) {
-      setValidationError(valErr);
-      setSubmitting(false);
-      return;
-    }
-    try {
-      await register({
-        username: form.username.trim(),
-        email: form.email.trim(),
-        password: form.password,
-        confirm_password: form.confirm_password,
-      });
-      navigate("/dashboard", { replace: true });
-    } catch {
-      // Error is set by AuthContext
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleGoogleSignIn = async () => {
-    setGoogleError(null);
-    clearError();
-    if (isSupabaseConfigured) {
-      try {
-        const { error: sbError } = await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo: `${window.location.origin}/auth/google/callback`,
-          },
-        });
-        if (sbError) {
-          setGoogleError(`Google sign-in error: ${sbError.message}`);
-        }
-      } catch {
-        setGoogleError("Unable to initiate Google sign-in. Please try again or create an account with email.");
-      }
-    } else {
-      setGoogleError("Google OAuth is not configured on this environment. Please register with username/email and password.");
+    setError(null);
+    try {
+      await signInWithGoogle();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Google sign-up failed');
     }
   };
 
-  const passwordRequirementStatus = PASSWORD_REQUIREMENTS.map((req) => ({
-    ...req,
-    met: req.test(form.password),
-  }));
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username.trim() || !email.trim() || !password || !confirmPassword) {
+      setError('Please fill in all required fields.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+    try {
+      await register(username.trim(), email.trim(), password, confirmPassword);
+      navigate('/');
+    } catch (err: unknown) {
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : 'Registration failed. Please check your information.';
+      setError(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <AuthLayout>
-      <div className="bg-white rounded-2xl border border-stone-200 shadow-card p-6 sm:p-8 animate-fade-in">
-        <div className="mb-8 text-center">
-          <div
-            className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-light p-2.5 mb-4 shadow-sm"
-            aria-hidden="true"
+    <Container
+      maxWidth="sm"
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        py: 4,
+      }}
+    >
+      <Paper
+        elevation={0}
+        sx={{
+          p: { xs: 3, sm: 5 },
+          width: '100%',
+          borderRadius: 3.5,
+          border: '1px solid',
+          borderColor: 'divider',
+          boxShadow: (theme) =>
+            theme.palette.mode === 'dark'
+              ? '0 10px 30px rgba(0, 0, 0, 0.4)'
+              : '0 10px 30px rgba(79, 70, 229, 0.08)',
+        }}
+      >
+        {/* Brand header */}
+        <Box sx={{ textAlign: 'center', mb: 3.5 }}>
+          <Box
+            component="img"
+            src={logoImg}
+            alt="Sophia AI Logo"
+            sx={{
+              width: 56,
+              height: 56,
+              objectFit: 'contain',
+              mb: 2,
+            }}
+          />
+          <Typography
+            variant="h4"
+            component="h1"
+            sx={{ fontWeight: 800, letterSpacing: '-0.02em', mb: 0.5 }}
           >
-            <img src="/logo-icon.png" alt="Sophia AI Logo" className="h-full w-full object-contain" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-stone-900">
-            Create account
-          </h1>
-          <p className="mt-2 text-sm text-stone-600">
-            Join Sophia AI to manage your research papers
-          </p>
-        </div>
+            Create Your Account
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            Join Sophia AI to synthesize academic research papers with verifiable citations.
+          </Typography>
+        </Box>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-stone-700">
-              Username
-            </label>
-            <input
-              type="text"
-              value={form.username}
-              onChange={(event) =>
-                handleInputChange("username", event.target.value)
-              }
-              placeholder="Choose a username"
-              className="w-full border border-stone-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand focus:ring-offset-2 rounded-lg"
-              required
-              autoComplete="username"
-              disabled={submitting || isLoading}
-            />
-            {form.username.trim() && form.username.trim().length < 3 && (
-              <p className="text-sm text-error">
-                Username must be at least 3 characters.
-              </p>
-            )}
-          </div>
+        {error && (
+          <Box sx={{ mb: 3 }}>
+            <ErrorAlert error={error} onDismiss={() => setError(null)} />
+          </Box>
+        )}
 
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-stone-700">
-              Email
-            </label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(event) =>
-                handleInputChange("email", event.target.value)
-              }
-              placeholder="you@example.com"
-              className="w-full border border-stone-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand focus:ring-offset-2 rounded-lg"
-              required
-              autoComplete="email"
-              disabled={submitting || isLoading}
-            />
-          </div>
-
-          <PasswordInput
-            value={form.password}
-            onChange={(value) => handleInputChange("password", value)}
-            disabled={submitting || isLoading}
+        {/* Registration form */}
+        <Box component="form" onSubmit={handleSubmit}>
+          <TextField
+            fullWidth
+            label="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            disabled={loading}
+            autoComplete="username"
+            autoFocus
+            sx={{ mb: 2 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <PersonOutlineIcon sx={{ color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+            }}
           />
 
-          <PasswordInput
-            label="Confirm password"
-            value={form.confirm_password}
-            onChange={(value) => handleInputChange("confirm_password", value)}
-            disabled={submitting || isLoading}
+          <TextField
+            fullWidth
+            label="Email Address"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={loading}
+            autoComplete="email"
+            sx={{ mb: 2 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <MailOutlineIcon sx={{ color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+            }}
           />
 
-          <div className="space-y-1">
-            <p className="text-xs text-stone-600 font-medium">
-              Password requirements:
-            </p>
-            <ul className="space-y-0.5">
-              {passwordRequirementStatus.map((req) => (
-                <li key={req.label} className="flex items-start gap-2 text-xs">
-                  <span
-                    className={`mt-0.5 text-stone-500 ${req.met ? "text-success" : "text-stone-400"}`}
+          <TextField
+            fullWidth
+            label="Password"
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={loading}
+            autoComplete="new-password"
+            sx={{ mb: 2 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <LockOutlinedIcon sx={{ color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="toggle password visibility"
+                    onClick={() => setShowPassword(!showPassword)}
+                    edge="end"
                   >
-                    {req.met ? "✓" : "○"}
-                  </span>
-                  <span
-                    className={`text-stone-600 ${req.met ? "line-through opacity-60" : ""}`}
-                  >
-                    {req.label}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
 
-          {(error || validationError || googleError) && (
-            <div className="p-3 rounded-lg bg-error-light border border-error/20 text-sm text-error flex items-start justify-between gap-2">
-              <span>{validationError || error || googleError}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setValidationError(null);
-                  clearError();
-                  setGoogleError(null);
-                }}
-                className="text-error hover:text-red-800 text-xs font-semibold shrink-0"
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
+          <TextField
+            fullWidth
+            label="Confirm Password"
+            type={showPassword ? 'text' : 'password'}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            disabled={loading}
+            autoComplete="new-password"
+            sx={{ mb: 3 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <LockOutlinedIcon sx={{ color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+            }}
+          />
 
-          <button
+          <Button
             type="submit"
-            disabled={submitting || isLoading}
-            className="w-full py-2.5 text-base font-medium text-white bg-brand rounded-lg hover:bg-brand-dark transition-colors focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            fullWidth
+            variant="contained"
+            size="large"
+            disabled={loading}
+            sx={{
+              py: 1.4,
+              fontSize: '0.95rem',
+              fontWeight: 700,
+              boxShadow: '0 4px 14px rgba(79, 70, 229, 0.35)',
+            }}
           >
-            {submitting || isLoading ? "Creating account…" : "Create account"}
-          </button>
-        </form>
+            {loading ? <CircularProgress size={24} color="inherit" /> : 'Create Account'}
+          </Button>
 
-        <div className="mt-6">
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-stone-200"></span>
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-stone-400 font-medium">
-                Or continue with
-              </span>
-            </div>
-          </div>
+          <Box sx={{ display: 'flex', alignItems: 'center', my: 2.5 }}>
+            <Divider sx={{ flexGrow: 1 }} />
+            <Typography variant="caption" sx={{ px: 2, color: 'text.secondary', fontWeight: 600 }}>
+              OR
+            </Typography>
+            <Divider sx={{ flexGrow: 1 }} />
+          </Box>
 
-          <div className="mt-4">
-            <GoogleButton
-              onClick={handleGoogleSignIn}
-              disabled={submitting || isLoading}
-            />
-          </div>
+          <GoogleButton text="Sign up with Google" onClick={handleGoogleSignIn} disabled={loading} />
 
-          <p className="mt-6 text-center text-sm text-stone-600">
-            Already have an account?{" "}
-            <a
-              href="/login"
-              className="font-semibold text-brand hover:text-brand-dark hover:underline"
-            >
-              Sign in
-            </a>
-          </p>
-        </div>
-      </div>
-    </AuthLayout>
+          <Box sx={{ textAlign: 'center', mt: 3 }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              Already have an account?{' '}
+              <MuiLink
+                component={RouterLink}
+                to="/login"
+                sx={{
+                  color: 'primary.main',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  '&:hover': { textDecoration: 'underline' },
+                }}
+              >
+                Sign In
+              </MuiLink>
+            </Typography>
+          </Box>
+        </Box>
+      </Paper>
+    </Container>
   );
-}
+};
